@@ -2138,10 +2138,11 @@ function launchConfetti() {
   })(t0);
 }
 
-/* ---------------- BGM：WebAudio 合成战鼓 + 低沉号角，无外链音频 ----------------
-   AudioContext 懒创建（首次交互才建，不拖加载）；强度跟战况走：
-   多空战力差距越大鼓点越快（72 → 132 BPM），胶着时低沉缓慢。
-   静音与音量记入 localStorage qk_bgm_v1；顶栏有静音开关与音量条。 */
+/* ---------------- BGM v2：WebAudio 合成史诗战歌《燃》，无外链音频 ----------------
+   固定 142 BPM、D 小调、8 小节循环：四踩战鼓 + 太鼓 + 驱动贝斯 + 铜管重击
+   + 弦乐铺底 + 英雄主旋律；决战最后 15 秒加双倍鼓点推满。
+   AudioContext 懒创建（首次交互才建，不拖加载）；
+   静音与音量记入 localStorage qk_bgm_v2；顶栏有静音开关与音量条。 */
 const BGM = { ctx: null, master: null, musicGain: null, beepGain: null, on: false, muted: false, volume: 0.8, timer: null, step: 0, nextTime: 0 };
 function bgmLoadState() {
   try {
@@ -2152,10 +2153,7 @@ function bgmLoadState() {
 function bgmSave() {
   try { localStorage.setItem("qk_bgm_v2", JSON.stringify({ muted: BGM.muted, volume: BGM.volume })); } catch (e) {}
 }
-function bgmBpm() {
-  const gap = Math.abs((S.powerPct || 50) - 50) / 50;
-  return 72 + gap * 60;
-}
+function bgmBpm() { return 142; } /* v2 固定 142 BPM：燃曲不漂速 */
 function bgmEnsure() {
   if (BGM.ctx) return true;
   try {
@@ -2238,20 +2236,70 @@ function bgmCrash(when, vel) {
   src.connect(f); f.connect(g); g.connect(BGM.musicGain);
   src.start(when);
 }
-function bgmPad(when, dur, root) {
+function bgmPad(when, dur, tones) {
   const c = BGM.ctx;
-  [1, 1.5, 2].forEach((m, i) => {
+  tones.forEach((fr, i) => {
     const o = c.createOscillator(), g = c.createGain();
     const f = c.createBiquadFilter();
-    o.type = "sawtooth"; o.frequency.value = root * m;
-    o.detune.value = i * 4 - 4;
-    f.type = "lowpass"; f.frequency.value = 420;
+    o.type = "sawtooth"; o.frequency.value = fr;
+    o.detune.value = i * 5 - 5;
+    f.type = "lowpass"; f.frequency.value = 760;
     g.gain.setValueAtTime(0.0001, when);
-    g.gain.linearRampToValueAtTime(0.05, when + dur * 0.35);
+    g.gain.linearRampToValueAtTime(0.032, when + dur * 0.3);
     g.gain.linearRampToValueAtTime(0.0001, when + dur);
     o.connect(f); f.connect(g); g.connect(BGM.musicGain);
     o.start(when); o.stop(when + dur + 0.05);
   });
+}
+function mf(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
+function bgmBrass(when, midiRoot, dur, vel) {
+  const c = BGM.ctx;
+  [0, 7, 12].forEach((iv, i) => {
+    const o = c.createOscillator(), g = c.createGain();
+    const f = c.createBiquadFilter();
+    o.type = "sawtooth"; o.frequency.value = mf(midiRoot + iv);
+    f.type = "lowpass";
+    f.frequency.setValueAtTime(2100, when);
+    f.frequency.exponentialRampToValueAtTime(520, when + dur);
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(vel * (i === 0 ? 1 : 0.55), when + 0.018);
+    g.gain.exponentialRampToValueAtTime(0.001, when + dur);
+    o.connect(f); f.connect(g); g.connect(BGM.musicGain);
+    o.start(when); o.stop(when + dur + 0.05);
+  });
+}
+function bgmLead(when, midi, dur, vel) {
+  const c = BGM.ctx;
+  [-6, 5].forEach((det) => {
+    const o = c.createOscillator(), g = c.createGain();
+    const f = c.createBiquadFilter();
+    o.type = "sawtooth"; o.frequency.value = mf(midi);
+    o.detune.value = det;
+    f.type = "lowpass"; f.frequency.value = 2600;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.linearRampToValueAtTime(vel * 0.5, when + 0.03);
+    g.gain.setValueAtTime(vel * 0.42, when + Math.max(0.04, dur - 0.07));
+    g.gain.linearRampToValueAtTime(0.0001, when + dur);
+    o.connect(f); f.connect(g); g.connect(BGM.musicGain);
+    o.start(when); o.stop(when + dur + 0.05);
+  });
+  const o2 = c.createOscillator(), g2 = c.createGain();
+  o2.type = "triangle"; o2.frequency.value = mf(midi);
+  g2.gain.setValueAtTime(vel * 0.4, when);
+  g2.gain.exponentialRampToValueAtTime(0.001, when + dur);
+  o2.connect(g2); g2.connect(BGM.musicGain);
+  o2.start(when); o2.stop(when + dur + 0.05);
+}
+function bgmBass(when, midi, dur, vel) {
+  const c = BGM.ctx;
+  const o = c.createOscillator(), g = c.createGain();
+  const f = c.createBiquadFilter();
+  o.type = "sawtooth"; o.frequency.value = mf(midi);
+  f.type = "lowpass"; f.frequency.value = 340;
+  g.gain.setValueAtTime(vel, when);
+  g.gain.exponentialRampToValueAtTime(0.001, when + dur);
+  o.connect(f); f.connect(g); g.connect(BGM.musicGain);
+  o.start(when); o.stop(when + dur + 0.02);
 }
 function bgmRiser(dur) {
   if (!BGM.ctx || !BGM.on || BGM.muted) return;
@@ -2322,35 +2370,49 @@ function bgmHorn(when, dur) {
 function bgmSchedule() {
   if (!BGM.ctx || !BGM.on || BGM.muted) return;
   const c = BGM.ctx;
-  const bpm = bgmBpm();
-  const beat = 60 / bpm;
-  const intense = bpm > 100;
+  const beat = 60 / bgmBpm();      /* 142 BPM */
+  const s16 = beat / 4;            /* 十六分音符 */
   const urgent = S.phase === "betting" && S.cdSec !== null && S.cdSec <= 15 && S.cdSec > 0;
-  const ROOTS = [55, 43.65, 49, 41.2];
+  /* 8 小节循环（每小节 16 步）：Dm Dm Bb Bb Dm Dm Bb A */
+  const BASS_ROOT = [38, 38, 34, 34, 38, 38, 34, 33];
+  const PAD_TONES = [
+    [50, 53, 57], [50, 53, 57], [46, 50, 53], [46, 50, 53],
+    [50, 53, 57], [50, 53, 57], [46, 50, 53], [45, 49, 52]
+  ];
+  const BRASS_ROOT = [50, 50, 46, 46, 50, 50, 46, 45];
+  const LEAD = [
+    [64, 74, 6], [70, 69, 3], [73, 65, 3], [76, 69, 4],
+    [80, 70, 6], [86, 69, 3], [89, 67, 3], [92, 65, 4],
+    [96, 74, 4], [100, 77, 4], [104, 81, 6], [110, 79, 6],
+    [112, 81, 8], [120, 76, 4], [124, 69, 4]
+  ];
   while (BGM.nextTime < c.currentTime + 0.25) {
     const when = BGM.nextTime;
-    const st = BGM.step;
-    bgmKick(when, 0.85);
-    if (st % 8 === 0) bgmTaiko(when, 0.55);
-    if (urgent) bgmTaiko(when + beat / 2, 0.4);
-    if (st % 2 === 1) bgmNoise(when, intense ? 0.22 : 0.12, 0.06);
-    if (intense && st % 4 === 2) bgmKick(when + beat / 2, 0.5);
-    if (st % 32 === 30) bgmTom(when, 98, 0.5);
-    if (st % 32 === 31) { bgmTom(when, 82, 0.55); bgmTom(when + beat / 2, 66, 0.6); }
-    if (st % 32 === 0) bgmHorn(when, beat * 8);
-    if (st % 64 === 0) bgmPad(when, beat * 16, ROOTS[Math.floor(st / 64) % 4]);
-    if (st % 64 === 56) bgmRiser(beat * 7);
-    if (st % 2 === 0) {
-      const bo = c.createOscillator(), bg2 = c.createGain(), bf = c.createBiquadFilter();
-      bo.type = "sawtooth"; bo.frequency.value = ROOTS[Math.floor(st / 64) % 4];
-      bf.type = "lowpass"; bf.frequency.value = 260;
-      bg2.gain.setValueAtTime(0.09, when);
-      bg2.gain.exponentialRampToValueAtTime(0.001, when + beat * 0.9);
-      bo.connect(bf); bf.connect(bg2); bg2.connect(BGM.musicGain);
-      bo.start(when); bo.stop(when + beat);
+    const st = BGM.step % 128;
+    const bar = Math.floor(st / 16), s = st % 16;
+    const root = BASS_ROOT[bar];
+    if (s % 4 === 0) bgmKick(when, 0.9);
+    if (s === 14) bgmKick(when, 0.45);
+    if (s === 0) bgmTaiko(when, 0.6);
+    if (s === 8) bgmTaiko(when, 0.45);
+    if (urgent && s % 2 === 0) bgmTaiko(when, 0.3);
+    if (s % 4 === 2) bgmNoise(when, 0.13, 0.05);
+    if (urgent && s % 2 === 1) bgmNoise(when, 0.07, 0.04);
+    if (s % 2 === 0) bgmBass(when, (s % 8 === 4) ? root + 12 : root, s16 * 1.9, 0.17);
+    if (bar >= 4 && s % 2 === 0) {
+      const arp = PAD_TONES[bar];
+      bgmPluck(when, mf(arp[(s / 2) % 3] + 12), 0.07);
+    }
+    if (s === 0 || s === 6 || s === 10) bgmBrass(when, BRASS_ROOT[bar], s16 * 3.2, 0.11);
+    if (s === 0) bgmPad(when, beat * 4, PAD_TONES[bar].map(mf));
+    if (st === 0) bgmCrash(when, 0.4);
+    if (st === 112) bgmRiser(beat * 3.6);
+    if (st >= 120) bgmTom(when, [98, 88, 78, 70, 64, 58, 52, 47][st - 120], 0.5);
+    for (let k = 0; k < LEAD.length; k++) {
+      if (LEAD[k][0] === st) bgmLead(when, LEAD[k][1], LEAD[k][2] * s16, 0.16);
     }
     BGM.step++;
-    BGM.nextTime += beat;
+    BGM.nextTime += s16;
   }
 }
 /* 音乐看门狗：TP 等钱包浏览器切后台/弹窗会挂起音频，回到前台自动拉活 */
