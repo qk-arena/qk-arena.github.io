@@ -788,6 +788,7 @@ function applyLaunchModes() {
   if (!enabled.includes(S.mode)) S.mode = defaultMode();
   $("modeSpeed").classList.toggle("active", S.mode === "speed");
   $("modeClassic").classList.toggle("active", S.mode === "classic");
+  const at = $("arenaTag"); if (at) at.textContent = S.mode === "speed" ? "1分钟场" : S.mode === "mid" ? "3分钟场" : "5分钟场";
 }
 
 /* ---------------- 合约 ABI ----------------
