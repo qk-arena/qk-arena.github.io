@@ -908,7 +908,7 @@ zh: {
 "toast.modeSpeed":"已切换：1 分钟极速局","toast.modeMid":"已切换：3 分钟进阶局","toast.modeClassic":"已切换：5 分钟经典局",
 "toast.refBound":"推荐人绑定成功","toast.refAlreadyBound":"你已绑定推荐人，无需重复绑定","toast.refCheckFail":"读取绑定状态失败，请稍后再试","toast.refInvite":"你通过好友邀请进入，连接钱包后请确认绑定推荐人",
 "toast.tokenNotConfigured":"测试网代币未配置：请先部署 MockSI 并把地址填入 TOKENS.SI.addressesByChain[97]",
-"toast.cancelled":"你取消了交易","toast.betFail":"下注失败：","toast.refresh":"已刷新",
+"toast.cancelled":"你取消了交易","toast.betFail":"下注失败：","toast.roundSwitched":"本局未开始或已截止，已切换到当前局，请再点一次","toast.refresh":"已刷新",
 "toast.fxOn":"特效已开启","toast.fxOff":"特效已关闭","toast.bgmOn":"战鼓音乐已开启","toast.bgmOff":"音乐已静音",
 "toast.gasNote":"BSC 链上交易 · 单笔 gas 约 0.2–0.3 美元 · 由玩家承担",
 "gas.ethersFail":"ethers.js 加载失败：请检查网络后刷新页面（钱包功能依赖 CDN）",
@@ -984,7 +984,7 @@ en: {
 "toast.modeSpeed":"Switched: 1-min Speed","toast.modeMid":"Switched: 3-min Mid","toast.modeClassic":"Switched: 5-min Classic",
 "toast.refBound":"Referrer bound","toast.refAlreadyBound":"You already have a referrer bound — no need to bind again","toast.refCheckFail":"Failed to read binding status — try again later","toast.refInvite":"You entered via a friend's invite — after connecting, confirm the referrer to bind",
 "toast.tokenNotConfigured":"Testnet token not configured: deploy MockSI and fill TOKENS.SI.addressesByChain[97] first",
-"toast.cancelled":"You cancelled the transaction","toast.betFail":"Bet failed: ","toast.refresh":"Refreshed",
+"toast.cancelled":"You cancelled the transaction","toast.betFail":"Bet failed: ","toast.roundSwitched":"That round hasn't started or has closed — switched to the live round, tap again.","toast.refresh":"Refreshed",
 "toast.fxOn":"Effects on","toast.fxOff":"Effects off","toast.bgmOn":"Battle drums on","toast.bgmOff":"Music muted",
 "toast.gasNote":"On-chain BSC tx · ~$0.2–0.3 gas per tx · paid by you",
 "gas.ethersFail":"ethers.js failed to load: check your network and refresh (wallet features need the CDN)",
@@ -1338,16 +1338,19 @@ async function discoverRound() {
   if (!id) {
     try { const n = await S.contract.nextRoundId(); if (n && Number(n) > 0) id = Number(n) - 1; } catch (e) {}
   }
-  for (let tries = 0; tries < 5 && id > 0; tries++, id--) {
+  let futureRound = null;
+  for (let tries = 0; tries < 8 && id > 0; tries++, id--) {
     let rd = null;
     try { rd = await S.contract.getRound(id); } catch (e) { break; }
     if (!rd) break;
     const r = normRound(rd);
     if (r.mode !== mn) continue;
     if (r.token.toLowerCase() !== TOKEN.address.toLowerCase()) continue;
-    if (r.closeTime > nowSec - 5 || r.status === 0) { chainRound = r; return r; }
-    if (tries === 0) { chainRound = r; return r; }
+    // Keeper 会提前创建下一局（status 也是 OPEN）：未来局不能下注，跳过往回找已开始的局
+    if (r.startTime > nowSec) { if (!futureRound) futureRound = r; continue; }
+    chainRound = r; return r;
   }
+  if (futureRound) { chainRound = futureRound; return futureRound; }
   try {
     const bn = await S.provider.getBlockNumber();
     const evts = await S.contract.queryFilter(S.contract.filters.RoundCreated(null, mn, TOKEN.address), Math.max(0, bn - 2400), bn);
@@ -1456,7 +1459,7 @@ function tickChainRound() {
     refreshPools();
   }
   const cutoff = r.lockTime - CONFIG.BET_CUTOFF_SEC;
-  const bettingOpen = nowSec < cutoff && r.status === 0;
+  const bettingOpen = nowSec < cutoff && nowSec >= r.startTime && r.status === 0;
   S.viewWin = { start: (r.startTime || (r.lockTime - roundDuration())) - 10, end: r.closeTime + 14 };
   S.cdSec = bettingOpen ? cutoff - nowSec : r.closeTime - nowSec;
   const phase = bettingOpen ? "betting" : "locked";
@@ -1928,6 +1931,15 @@ async function doBet() {
   if (TOKEN_NOT_CONFIGURED) { toast(t("toast.tokenNotConfigured")); return; } // M-3：测试网代币未配置，拦截下注
   const err = validateBet();
   if (err) { toast(err); return; }
+  // 下单前复核局窗口：页面上的局可能还没开始（预创建局）或刚过截止，先重新发现当前局，避免发出必定回滚的交易
+  if (S.contract && chainRound) {
+    const bettable = (r) => r && r.status === 0 && Math.floor(Date.now() / 1000) >= r.startTime && Math.floor(Date.now() / 1000) < r.lockTime - CONFIG.BET_CUTOFF_SEC;
+    if (!bettable(chainRound) || S.roundId !== chainRound.id) {
+      await discoverRound();
+      if (chainRound) S.roundId = chainRound.id;
+      if (!bettable(chainRound)) { toast(t("toast.roundSwitched")); return; }
+    }
+  }
   const amt = myBetAmount();
   const btn = $("betBtn");
   btn.disabled = true;
