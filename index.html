@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round18">
+<meta name="qk-build" content="round19">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -660,6 +660,8 @@ html{scrollbar-gutter:stable}
     <div class="pair-stats">
       <div class="pair-stat"><span>24小时交易人数</span><b id="statBettors">—</b></div>
       <div class="pair-stat"><span>累计已发放金额</span><b id="statPaidUsd">—</b></div>
+      <!-- TEMP-DIAG: 顶部统计诊断行（round19 临时，复验定位后删） -->
+      <div id="statsDbg" style="font-size:10px;color:#8a8f98;white-space:normal;word-break:break-all"></div>
     </div>
   </section>
   <!-- ===== 大倒计时（图表上方，一屏可见） ===== -->
@@ -2320,7 +2322,7 @@ function settlePrevRound(prevId, roundData) {
   try { localStorage.setItem("dk_stats_v1", JSON.stringify(S.stats)); } catch (e) {}
   S.lastSettledId = prevId;
   renderStats();
-  refreshChainStats();
+  refreshTopStats();
   if (window.__bgBurst) window.__bgBurst(rec.result);
   const csS = $("chartState"); if (csS) csS.textContent = t("state.settling");
   drawKline();
@@ -2613,8 +2615,8 @@ async function connectWallet(w) {
     if (TOKEN_NOT_CONFIGURED) { toast(t("toast.tokenNotConfigured")); $("siBalance").textContent = t("wallet.tokenNotConfigured"); }
     if (CONFIG.CONTRACT_ADDRESS) {
       S.contract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, BATTLE_ABI, S.signer);
-      refreshChainStats();
-      if (!window._csTimer) window._csTimer = setInterval(refreshChainStats, 60000);
+      refreshTopStats();
+      if (!window._csTimer) window._csTimer = setInterval(refreshTopStats, 60000);
       discoverRound().then(() => { refreshPools(); tickRound(); });
     }
     $("connectBtn").textContent = S.account.slice(0, 6) + "…" + S.account.slice(-4);
@@ -4141,6 +4143,25 @@ function drawLine() {
   // 开始/结束价标签最后上屏（F2）：压在线体之上，数字不被线划过
   if (S._pendingTags) { for (const fn of S._pendingTags) fn(); S._pendingTags = null; }
 }
+/* TEMP-DIAG: 顶部统计分步诊断（round19 临时加，上线复验定位失败点后删除）：
+   refreshChainStats / refreshBettors24h 的每个关键步骤都调 statsDbg 打点，
+   最新一步写进 window.__statsDbg，全部历史留在 window.__statsDbgLog，
+   并渲染一行小字到对局卡统计区下方的 #statsDbg，真实浏览器里哪一步失败一眼可见。 */
+window.__statsDbg = { stage: "init", ok: false, err: "", ts: 0 };
+window.__statsDbgLog = [];
+function statsDbg(stage, ok, err) {
+  try {
+    const rec = { stage: stage, ok: !!ok, err: err ? String((err && err.message) || err).slice(0, 140) : "", ts: Date.now() };
+    window.__statsDbg = rec;
+    window.__statsDbgLog.push(rec);
+    if (window.__statsDbgLog.length > 60) window.__statsDbgLog.shift();
+    const el = document.getElementById("statsDbg");
+    if (el) {
+      const d = new Date(), p2 = (n) => String(n).padStart(2, "0");
+      el.textContent = "stats: stage=" + stage + (rec.err ? " err=" + rec.err : "") + " " + p2(d.getHours()) + ":" + p2(d.getMinutes()) + ":" + p2(d.getSeconds());
+    }
+  } catch (e) {}
+}
 let chainStatsBusy = false;
 async function readContract() {
   if (S.contract) return S.contract;
@@ -4153,80 +4174,109 @@ async function readContract() {
 }
 let _statsRetries = 0;
 function scheduleStatsRetry() {
-  // round18 缺陷1：统计不完整（主统计没出数或 24h 人数没回来）时 15 秒后重试，
-  // 最多 8 次；之后由 60 秒定时间隔兜底。旧版唯一重试就是 60 秒间隔，首次调用
-  // 又总跟异步加载的 ethers 抢跑（readContract 返回 null 提前 return），
-  // 真实页面里两项统计长期停在「—」。
+  // round19：主统计（累计已发放）独立重试——没出数时 15 秒后再试，最多 8 次，
+  // 之后由 60 秒定时间隔兜底。24h 人数走自己的 scheduleBettorsRetry，两条线互不拖累。
   const cs = S.chainStats;
   const csOk = !!(cs && (cs.rounds > 0 || cs.paidUsd > 0));
-  if (csOk && S.bettors24 != null) { _statsRetries = 0; return; }
+  if (csOk) { _statsRetries = 0; return; }
   if (_statsRetries >= 8) return;
   _statsRetries++;
   setTimeout(() => { refreshChainStats(); }, 15000);
+}
+let _bettorsRetries = 0;
+function scheduleBettorsRetry() {
+  // round19：24h 人数独立重试（与主统计分开计数、分开触发）。
+  if (S.bettors24 != null) { _bettorsRetries = 0; return; }
+  if (_bettorsRetries >= 8) return;
+  _bettorsRetries++;
+  setTimeout(() => { refreshBettors24h(); }, 15000);
+}
+function refreshTopStats() {
+  // round19：两项统计彻底独立触发——各自内部自带 busy 守卫/节流/重试，
+  // 一项失败不许拖住另一项；触发点统一走这里。
+  try { refreshChainStats(); } catch (e) {}
+  try { refreshBettors24h(); } catch (e) {}
 }
 async function refreshChainStats() {
   if (chainStatsBusy) return;
   chainStatsBusy = true;
   try {
-    const c = await readContract();
-    if (!c) { // ethers 还没加载完 / 合约未配置：人数统计不依赖 readContract，一并触发，并排一次重试
+    /* TEMP-DIAG step: readContract（eth_call 走 CONFIG.CHAIN_RPC / data-seed） */
+    let c = null;
+    try { c = await readContract(); } catch (e) { statsDbg("readContract", false, e); }
+    if (!c) { // ethers 还没加载完 / 合约未配置：记录并排一次重试（人数已拆为独立触发，不在这里顺带调）
+      statsDbg("readContract", false, "null(ethers未就绪或合约未配置)");
       chainStatsBusy = false;
-      refreshBettors24h();
       scheduleStatsRetry();
       return;
     }
-    // round17 修复：旧版这里有一行读 CONFIG.TOKENS.SI（CONFIG 里根本没有 TOKENS 字段，
-    // 代币表是顶层 TOKENS 常量），一执行就抛 TypeError 并被外层 catch 静默吞掉——
-    // S.chainStats 永不赋值（已发放金额永远「—」），且后面的 refreshBettors24h() 永远调不到。
-    // 该变量在函数里根本没被用，是残留代码，已删除。
+    statsDbg("readContract", true);
+    /* TEMP-DIAG step: cacheRead（所有数值先 Number() 转换；缓存坏了用空缓存，不许影响主流程） */
     let cache = { scanned: 0, paid: 0, paidU: 0, settled: 0 };
-    try { cache = JSON.parse(localStorage.getItem("dk_stats_chain_v3") || "null") || cache; } catch (e) {}
-    if (typeof cache.scanned !== "number") cache = { scanned: 0, paid: 0, paidU: 0, settled: 0 };
-    if (cache.paidU === undefined) cache.paidU = 0;
     try {
-      // round id 全局递增（不按 mode/asset 分开编号），取全局最新 id 只扫一遍；
-      // 旧版按 mode 分三遍扫同一 id 区间，同一批已结算局被重复计约 3 遍（数字虚高）。
-      let gLatest = 0;
-      for (const m of [0, 1, 2]) for (let a = 0; a <= 6; a++) { try { gLatest = Math.max(gLatest, Number(await c.latestRoundId(m, a))); } catch (e) {} }
-      let from = cache.scanned || 0;
-      if (gLatest - from > 2000) from = gLatest - 2000; // 首次打开/久未打开时限制扫描窗口
-      let done = from;
-      for (let id = from + 1; id <= gLatest; id += 20) {
-        const batch = [];
-        for (let j = id; j < Math.min(id + 20, gLatest + 1); j++) batch.push(c.getRound(j));
-        let rounds = null;
-        for (let att = 0; att < 2 && !rounds; att++) {
-          try { rounds = await Promise.all(batch); } catch (e) { if (att === 0) await new Promise(r => setTimeout(r, 800)); }
-        }
-        if (!rounds) break; // 本批重试仍失败：保留已扫进度，下轮刷新续扫，不整场归零
+      const raw = JSON.parse(localStorage.getItem("dk_stats_chain_v3") || "null");
+      if (raw) cache = { scanned: Number(raw.scanned) || 0, paid: Number(raw.paid) || 0, paidU: Number(raw.paidU) || 0, settled: Number(raw.settled) || 0 };
+    } catch (e) { statsDbg("cacheRead", false, e); }
+    /* TEMP-DIAG step: latestRoundId（round id 全局递增、不按 mode/asset 分开编号，取全局最新只扫一遍；
+       逐个调用各自容错，统计成功个数，21 个全灭才记失败） */
+    let gLatest = 0, lrOk = 0, lrErr = null;
+    for (const m of [0, 1, 2]) for (let a = 0; a <= 6; a++) {
+      try { gLatest = Math.max(gLatest, Number(await c.latestRoundId(m, a))); lrOk++; } catch (e) { lrErr = e; }
+    }
+    statsDbg("latestRoundId=" + gLatest + "(" + lrOk + "/21)", lrOk > 0, lrOk > 0 ? "" : lrErr);
+    /* TEMP-DIAG step: getRoundScan（round19 容错：10 个一批、批间 100ms、单批失败重试 2 次且每次重建调用——
+       旧版 20 个一批且重试时复用同一批已拒绝的 Promise，重试永远无效，一批失败就断扫；
+       每批成功立刻把 cache 增量赋值给 S.chainStats 并渲染，部分成功先出部分数，不等全扫完） */
+    let from = cache.scanned || 0;
+    if (gLatest - from > 2000) from = gLatest - 2000; // 首次打开/久未打开时限制扫描窗口
+    let done = from;
+    for (let id = from + 1; id <= gLatest; id += 10) {
+      const hi = Math.min(id + 9, gLatest);
+      let rounds = null, lastErr = null;
+      for (let att = 0; att < 3 && !rounds; att++) {
+        try { rounds = await Promise.all(Array.from({ length: hi - id + 1 }, (_, k) => c.getRound(id + k))); }
+        catch (e) { lastErr = e; if (att < 2) await new Promise(r => setTimeout(r, 600)); }
+      }
+      if (!rounds) { statsDbg("getRoundScan@" + id + "-" + hi, false, lastErr); break; } // 本批重试仍失败：保留已扫进度，下轮刷新续扫，不整场归零
+      // 本批先在局部变量里累加，整批算完才并入 cache：中途抛错这批不计，避免下轮续扫重复计数
+      let bSettled = 0, bPaid = 0, bPaidU = 0, accErr = null;
+      try {
         for (const r of rounds) {
           if (Number(r.status) === 2) {
-            cache.settled++;
-            cache.paid += Number(ethers.formatUnits(r.longPool + r.shortPool, 18));
-            if (r.longPoolUsdt !== undefined) cache.paidU += Number(ethers.formatUnits(r.longPoolUsdt + r.shortPoolUsdt, 18));
+            bSettled++;
+            bPaid += Number(ethers.formatUnits(r.longPool + r.shortPool, 18));
+            if (r.longPoolUsdt !== undefined) bPaidU += Number(ethers.formatUnits(r.longPoolUsdt + r.shortPoolUsdt, 18));
           }
         }
-        done = Math.min(id + 19, gLatest);
-      }
+      } catch (e) { accErr = e; }
+      if (accErr) { statsDbg("roundAccum@" + id + "-" + hi, false, accErr); break; }
+      cache.settled += bSettled; cache.paid += bPaid; cache.paidU += bPaidU;
+      done = hi;
       cache.scanned = done;
-    } catch (e) { /* 扫描异常时保留缓存旧值，下方仍用旧值渲染 */ }
-    // SI 实时价（DexScreener 主池价）：累计已发放金额按 USD 口径展示（照竞品顶部）
+      S.chainStats = { rounds: cache.settled, paid: cache.paid, paidUsd: cache.paid * (S.siUsd || CONFIG.SI_USD) + (cache.paidU || 0) };
+      renderStats();
+      statsDbg("getRoundScan " + done + "/" + gLatest, true);
+      if (hi < gLatest) await new Promise(r => setTimeout(r, 100));
+    }
+    /* TEMP-DIAG step: siPrice（SI 实时价 DexScreener 主池价；3 秒超时，失败用 CONFIG.SI_USD 回退价，不许堵住渲染） */
     if (!S.siUsd) {
       try {
-        const _dr = await fetch("https://api.dexscreener.com/latest/dex/pairs/bsc/" + SI_POOL, { signal: AbortSignal.timeout(5000) });
+        const _dr = await fetch("https://api.dexscreener.com/latest/dex/pairs/bsc/" + SI_POOL, { signal: AbortSignal.timeout(3000) });
         const _dj = await _dr.json();
         const _p = _dj && _dj.pairs && _dj.pairs[0] && parseFloat(_dj.pairs[0].priceUsd);
         if (_p > 0) S.siUsd = _p;
-      } catch (e) {}
+      } catch (e) { statsDbg("siPrice", false, e); }
     }
     const siUsd = S.siUsd || CONFIG.SI_USD;
     S.chainStats = { rounds: cache.settled, paid: cache.paid, paidUsd: cache.paid * siUsd + (cache.paidU || 0) };
-    try { localStorage.setItem("dk_stats_chain_v3", JSON.stringify(cache)); } catch (e) {}
+    /* TEMP-DIAG step: cacheWrite（写进 localStorage 的值先 Number()，写失败不影响已算出的结果） */
+    try { localStorage.setItem("dk_stats_chain_v3", JSON.stringify({ scanned: Number(cache.scanned) || 0, paid: Number(cache.paid) || 0, paidU: Number(cache.paidU) || 0, settled: Number(cache.settled) || 0 })); }
+    catch (e) { statsDbg("cacheWrite", false, e); }
     renderStats();
-  } catch (e) { /* 链上统计失败时继续用本地见证数 */ }
-  refreshBettors24h(); // 不依赖主统计成败，独立刷新（内部自带 5 分钟节流）
+    statsDbg("chainDone rounds=" + cache.settled, true);
+  } catch (e) { statsDbg("chainFatal", false, e); /* 链上统计失败时继续用本地见证数 */ }
   chainStatsBusy = false;
-  scheduleStatsRetry(); // round18：没出数就 15 秒后重试，不永久「—」
+  scheduleStatsRetry(); // round19：主统计没出数就 15 秒后独立重试，不永久「—」
 }
 let _bettorsBusy = false;
 const _logsContracts = {};
@@ -4240,43 +4290,51 @@ function logsContract(url) {
 }
 async function refreshBettors24h() {
   // 24 小时交易人数（顶部复刻）：扫最近 24h 的 BetPlaced 事件数独立下注地址，
-  // 分块查、5 分钟缓存；失败保持旧值，不阻塞主统计。
+  // 分块查、5 分钟缓存；失败保持旧值，不阻塞主统计（round19 起与主统计彻底独立触发/重试）。
   // round17 修复：CONFIG.CHAIN_RPC（Binance data-seed 节点）对 eth_getLogs 一律回
   // -32005 limit exceeded（实测：单条/批量、500~3000 块任意跨度全灭），走它永远查不到；
-  // 改走支持 getLogs 的 publicnode 公共节点（CORS 已实测放行 *），逐个兜底、逐块重试。
+  // round19：getLogs 只走支持 getLogs 的 publicnode 公共节点（CORS 已实测放行 *），
+  // 不再把 data-seed 混在兜底列表里白等一轮；逐个节点兜底、逐块重试。
   if (_bettorsBusy) return;
   if (S._bettorsAt && Date.now() - S._bettorsAt < 300000) return;
   _bettorsBusy = true;
   try {
     const rpcs = CONFIG.CHAIN_ID === 56
-      ? ["https://bsc-rpc.publicnode.com", "https://bsc.publicnode.com", CONFIG.CHAIN_RPC]
-      : ["https://bsc-testnet-rpc.publicnode.com", "https://bsc-testnet.publicnode.com", CONFIG.CHAIN_RPC];
+      ? ["https://bsc-rpc.publicnode.com", "https://bsc.publicnode.com"]
+      : ["https://bsc-testnet-rpc.publicnode.com", "https://bsc-testnet.publicnode.com"];
     for (const url of rpcs) {
+      /* TEMP-DIAG step: logsContract */
       const c = logsContract(url);
-      if (!c || !c.runner) continue;
+      if (!c || !c.runner) { statsDbg("logsContract", false, url + " null"); continue; }
       try {
-        const bn = await c.runner.getBlockNumber();
+        /* TEMP-DIAG step: logsBlockNumber */
+        let bn = 0;
+        try { bn = await c.runner.getBlockNumber(); } catch (e) { statsDbg("logsBlockNumber", false, e); continue; }
         const from = Math.max(0, bn - 28800);
         const users = new Set();
         let okAll = true;
         for (let b = from; b <= bn; b += 3000) {
-          let evts = null;
+          /* TEMP-DIAG step: logsQuery（每一段单独打点，失败记下是哪一段、什么错） */
+          let evts = null, lastErr = null;
           for (let att = 0; att < 2 && !evts; att++) {
-            try { evts = await c.queryFilter(c.filters.BetPlaced(), b, Math.min(b + 2999, bn)); } catch (e) { if (att === 0) await new Promise(r => setTimeout(r, 800)); }
+            try { evts = await c.queryFilter(c.filters.BetPlaced(), b, Math.min(b + 2999, bn)); } catch (e) { lastErr = e; if (att === 0) await new Promise(r => setTimeout(r, 800)); }
           }
-          if (!evts) { okAll = false; break; }
+          if (!evts) { statsDbg("logsQuery@" + b + "-" + Math.min(b + 2999, bn), false, lastErr); okAll = false; break; }
           for (const e of evts) { if (e.args && e.args.user) users.add(e.args.user.toLowerCase()); }
         }
         if (!okAll) continue; // 本节点中途失败：换下一个节点整段重查，避免半截数据
         S.bettors24 = users.size;
         S._bettorsAt = Date.now();
         renderStats();
+        statsDbg("bettorsDone n=" + users.size, true);
         break;
-      } catch (e) { /* 换下一个节点 */ }
+      } catch (e) { statsDbg("logsNode", false, e); /* 换下一个节点 */ }
     }
-  } catch (e) { /* 保持旧值 */ }
+  } catch (e) { statsDbg("bettorsFatal", false, e); /* 保持旧值 */ }
   _bettorsBusy = false;
+  scheduleBettorsRetry(); // round19：人数没回来就 15 秒后独立重试，不挂在主统计流程上
 }
+
 function renderStats() {
   const r = $("statRounds"), p = $("statPool");
   if (!r || !p) return;
@@ -4553,7 +4611,7 @@ function init() {
   // ethers 动态加载：不堵渲染；拉不到只在气泡里提示，钱包功能不可用，主界面照常显示
   loadEthers().then((ok) => {
     if (!ok) { const g = $("gasNote"); if (g) g.textContent = t("gas.ethersFail"); }
-    else refreshChainStats(); // round18 缺陷1：ethers 一就绪立刻拉统计，不再等 60 秒定时间隔（init 里的首次调用多半抢跑在 ethers 之前）
+    else refreshTopStats(); // round18 缺陷1：ethers 一就绪立刻拉统计，不再等 60 秒定时间隔（init 里的首次调用多半抢跑在 ethers 之前）
   });
   safeStep("ref", () => {
     const q = new URLSearchParams(location.search);
@@ -4663,7 +4721,7 @@ function init() {
   // 慢源补点：每 1 秒用当前显示价给本局缓冲补一个点（无新价时即上一价平线段），
   // 保证任何品类一局采样点 ≥30、线不断（快源逐 tick 落点时此补点只刷新尾点）。
   setInterval(() => { updateSiPanel(); }, 1000);
-  refreshChainStats(); setInterval(() => { refreshChainStats(); }, 60000); // round16：顶部统计游客也可见，进站即拉、每分钟刷新
+  refreshTopStats(); setInterval(() => { refreshTopStats(); }, 60000); // round16：顶部统计游客也可见，进站即拉、每分钟刷新
   // round16 丝滑采样：每 250ms 沿缓动轨迹给本局缓冲落一个点（τ=0.35 向真实价趋近），
   // 慢源（REST 1 秒一价）之间不再是 1 秒一格的台阶；落点终点恒为真实价，只插值不造价。
   setInterval(() => {
