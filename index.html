@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round20">
+<meta name="qk-build" content="round21">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -566,28 +566,34 @@ html{scrollbar-gutter:stable}
 .wallet-stats-line b{color:var(--gold)}
 @media (max-width: 959px){
   .topbar{padding:6px 10px}
-  .topbar-in{flex-wrap:nowrap;gap:8px;max-width:none}
-  .logo{gap:7px}
+  .topbar-in{flex-wrap:nowrap;gap:4px;max-width:none}
+  .logo{gap:5px;flex:none}
+  .logo-mark{width:30px;height:30px}
   .logo-mark img{width:28px;height:28px}
-  .logo-name{font-size:15px;white-space:nowrap}
+  .logo-name{font-size:13px;white-space:nowrap}
   .logo-sub{display:none}
-  .price-box .price{font-size:14px;white-space:nowrap}
+  .arena-tag{font-size:10px;padding:1px 5px;margin-left:3px}
+  .price-box{flex:0 1 auto;min-width:68px}
+  .price-box .price{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .price-box .price small{display:none}
+  .price-box .chg{font-size:10px}
   .price-box .src-badge{display:none}
-  .top-controls{margin-left:auto;display:flex;gap:6px}
-  .btn-connect{padding:7px 10px;font-size:12px;white-space:nowrap}
-  #stageCol{display:flex;flex-direction:column;height:calc(100dvh - 46px - 54px);overflow:hidden}
+  .top-controls{margin-left:auto;display:flex;gap:4px}
+  .top-controls .mini-btn{padding:4px 6px;font-size:11px}
+  .btn-connect{padding:7px 8px;font-size:11.5px;white-space:nowrap}
+  #stageCol{display:flex;flex-direction:column;min-height:calc(100dvh - 46px - 54px)}
   .asset-bar{flex:0 0 auto;padding:4px 2px}
   .asset-chip{padding:5px 10px;font-size:12px}
   .big-cd{flex:0 0 auto;margin-bottom:6px;padding:6px 12px}
   .road-card{flex:0 0 auto;margin-top:0;padding:6px 10px 8px}
   .road-head{margin:0}
   .road-head h2{font-size:12px}
-  .road-grid{grid-template-rows:repeat(2,22px) !important;grid-auto-columns:22px !important;gap:4px !important;margin-top:4px !important}
+  .road-grid{display:grid !important;grid-auto-flow:column !important;grid-template-rows:repeat(2,22px) !important;grid-auto-columns:22px !important;gap:4px !important;margin-top:4px !important;height:52px !important;max-height:52px !important;overflow-x:auto !important;overflow-y:hidden !important}
   .road-grid .rdot{width:22px !important;height:22px !important}
-  #chartCard{flex:1 1 auto;min-height:0;max-height:352px;display:flex;flex-direction:column;margin-top:6px}
+  #chartCard{flex:1 1 auto;min-height:300px;max-height:352px;display:flex;flex-direction:column;margin-top:6px}
   .chart-wrap{flex:1 1 auto;min-height:0}
   .chart-wrap.si-mode .si-panel{min-height:0}
-  #kline{height:100% !important}
+  #kline{position:absolute;left:0;top:0;width:100%;height:100% !important}
   .bet-panel{flex:0 0 auto;margin-top:8px;padding:10px 12px}
   .bet-panel .countdown{display:none}
   .bet-panel .gas-note{display:none}
@@ -660,8 +666,6 @@ html{scrollbar-gutter:stable}
     <div class="pair-stats">
       <div class="pair-stat"><span>24小时交易人数</span><b id="statBettors">—</b></div>
       <div class="pair-stat"><span>累计已发放金额</span><b id="statPaidUsd">—</b></div>
-      <!-- TEMP-DIAG: 顶部统计诊断行（round19 临时，复验定位后删） -->
-      <div id="statsDbg" style="font-size:10px;color:#8a8f98;white-space:normal;word-break:break-all"></div>
     </div>
   </section>
   <!-- ===== 大倒计时（图表上方，一屏可见） ===== -->
@@ -4220,8 +4224,7 @@ function drawLine() {
 }
 /* TEMP-DIAG: 顶部统计分步诊断（round19 临时加，上线复验定位失败点后删除）：
    refreshChainStats / refreshBettors24h 的每个关键步骤都调 statsDbg 打点，
-   最新一步写进 window.__statsDbg，全部历史留在 window.__statsDbgLog，
-   并渲染一行小字到对局卡统计区下方的 #statsDbg，真实浏览器里哪一步失败一眼可见。 */
+   最新一步写进 window.__statsDbg，全部历史留在 window.__statsDbgLog（round21 起仅内部记录，页面不再渲染诊断行）。 */
 window.__statsDbg = { stage: "init", ok: false, err: "", ts: 0 };
 window.__statsDbgLog = [];
 function statsDbg(stage, ok, err) {
@@ -4230,11 +4233,6 @@ function statsDbg(stage, ok, err) {
     window.__statsDbg = rec;
     window.__statsDbgLog.push(rec);
     if (window.__statsDbgLog.length > 60) window.__statsDbgLog.shift();
-    const el = document.getElementById("statsDbg");
-    if (el) {
-      const d = new Date(), p2 = (n) => String(n).padStart(2, "0");
-      el.textContent = "stats: stage=" + stage + (rec.err ? " err=" + rec.err : "") + " " + p2(d.getHours()) + ":" + p2(d.getMinutes()) + ":" + p2(d.getSeconds());
-    }
   } catch (e) {}
 }
 let chainStatsBusy = false;
