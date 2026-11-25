@@ -300,6 +300,17 @@ input{font-family:inherit}
 #kline{width:100%;height:190px;display:block}
 .chart-empty{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:13px;pointer-events:none;background:rgba(11,15,26,.45)}
 .chart-empty.hide{display:none}
+/* SI 价格面板（用户口径：SI 品类不要 K 线/价格线图）：si-mode 时藏掉 canvas
+   及其全部浮层（纵轴/气泡是 canvas 自绘、随 canvas 一起消失；等待行情/阶段字/
+   结算倒数是 DOM 浮层、逐个藏），原位只显示当前价 + 本局开始价 + 涨跌。 */
+.si-panel{display:none}
+.chart-wrap.si-mode #kline,.chart-wrap.si-mode .chart-empty,.chart-wrap.si-mode .chart-state,.chart-wrap.si-mode .cs-segs,.chart-wrap.si-mode .cd321{display:none !important}
+.chart-wrap.si-mode .si-panel{display:flex;height:100%;min-height:190px;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px 8px}
+.si-panel-label{font-size:12px;color:var(--muted);letter-spacing:2px}
+.si-panel-price{font-size:46px;font-weight:900;line-height:1.05;color:#f5e7bd;text-shadow:0 2px 18px rgba(216,180,90,.25)}
+.si-panel-row{display:flex;gap:20px;align-items:center;font-size:14px;color:#c6cede}
+.si-panel-row b{color:#fff;font-size:15px}
+.si-panel-chg{font-weight:800;font-size:15px}
 .chart-toggle{display:flex;gap:4px}
 .ct-btn{background:#1a2338;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer}
 .ct-btn.sel{color:#171204;background:#d8b45a;border-color:transparent;font-weight:700}
@@ -519,6 +530,7 @@ html{scrollbar-gutter:stable}
   .road-grid .rdot{width:22px !important;height:22px !important}
   #chartCard{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-top:6px}
   .chart-wrap{flex:1 1 auto;min-height:0}
+  .chart-wrap.si-mode .si-panel{min-height:0}
   #kline{height:100% !important}
   .bet-panel{flex:0 0 auto;margin-top:8px;padding:10px 12px}
   .bet-panel .countdown{display:none}
@@ -618,7 +630,7 @@ html{scrollbar-gutter:stable}
       <span class="round-id" id="roundId">第 — 局</span>
       <span class="chart-legend"><span class="lg-up">■ <span data-i18n="chart.up">涨</span></span> <span class="lg-down">■ <span data-i18n="chart.down">跌</span></span> <span id="chartSrc">—</span></span></div>
     <div class="lock-price" style="display:none"><span data-i18n="price.lock">开始价</span> <b id="lockPrice">—</b>　·　<span data-i18n="price.cur">当前价</span> <b id="curPrice2">—</b>　·　<span data-i18n="price.chg">涨跌</span> <b id="chgNow">—</b></div>
-    <div class="chart-wrap"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div></div>
+    <div class="chart-wrap"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div><div class="si-panel" id="siPanel"><div class="si-panel-label">SI/USDT · <span data-i18n="price.cur">当前价</span></div><div class="si-panel-price" id="siPanelPrice">—</div><div class="si-panel-row"><span><span data-i18n="price.roundLock">本局开始价</span> <b id="siPanelLock">—</b></span><span class="si-panel-chg" id="siPanelChg">—</span></div></div></div>
   </section>
 
   <!-- ===== 下注面板 ===== -->
@@ -951,7 +963,7 @@ zh: {
 "mode.speedShort":"1 分钟极速","mode.classicShort":"5 分钟经典","cd.lockSettle":"锁定 / 结算",
 "battle.title":"⚔️ 多空对决 <span>· 实时战力</span>","army.long":"多 军","army.short":"空 军",
 "army.longSub":"看涨 · 买盘","army.shortSub":"看跌 · 卖盘","power.long":"多军战力","power.short":"空军战力",
-"price.lock":"开始价","price.cur":"当前价","price.chg":"涨跌",
+"price.lock":"开始价","price.cur":"当前价","price.chg":"涨跌","price.roundLock":"本局开始价",
 "bet.title":"🎯 下注面板","bet.long":"看涨","bet.short":"看跌","bet.odds":"赔率","bet.times":"倍",
 "bet.amount":"下注金额（$SI）","bet.min":"最低","bet.max":"单注上限",
 "calc.pool":"本局奖池（多 + 空）","calc.fee":"平台费 5%（2% 销毁 · 2% 返佣 · 1% 运营）","calc.win":"若获胜，预计到手","calc.profit":"预计净收益",
@@ -1027,7 +1039,7 @@ en: {
 "mode.speedShort":"1-min Speed","mode.classicShort":"5-min Classic","cd.lockSettle":"Lock / Settle",
 "battle.title":"⚔️ Long vs Short <span>· Live Power</span>","army.long":"LONG","army.short":"SHORT",
 "army.longSub":"Bullish · Buys","army.shortSub":"Bearish · Sells","power.long":"Long Power","power.short":"Short Power",
-"price.lock":"Start","price.cur":"Now","price.chg":"Change",
+"price.lock":"Start","price.cur":"Now","price.chg":"Change","price.roundLock":"Round start",
 "bet.title":"🎯 Bet Panel","bet.long":"Up","bet.short":"Down","bet.odds":"Odds","bet.times":"x",
 "bet.amount":"Bet Amount ($SI)","bet.min":"Min","bet.max":"Max per bet",
 "calc.pool":"Round Pool (Long + Short)","calc.fee":"Fee 5% (2% burn · 2% referral · 1% ops)","calc.win":"If you win, you get","calc.profit":"Est. Net Profit",
@@ -1208,6 +1220,7 @@ function notePrice(p, fromSim, g, assetId) {
     S.price = p;
     const _pe = $("price"); if (_pe) _pe.textContent = fmtPrice(p);
     const _cp = $("curPrice2"); if (_cp) _cp.textContent = fmtPrice(p);
+    updateSiPanel();
     return;
   }
   // 真行情一到就停模拟价，马上换真价
@@ -1248,6 +1261,7 @@ function notePrice(p, fromSim, g, assetId) {
     el.textContent = (d >= 0 ? "+" : "") + d.toFixed(2) + "%";
     el.style.color = d >= 0 ? "var(--red)" : "var(--green)";
   }
+  updateSiPanel(); // SI 无图模式下价格面板跟随每一笔真价刷新（其余品类内部自检直接返回）
 }
 function updatePower() {
   // 战场面板已去掉：只算多空占比（供 BGM 强弱与环境光用），不再写任何战场 DOM
@@ -1528,7 +1542,7 @@ function startAssetFeeds(id) {
     SYMBOL = meta.symbol; PAIR_USDT = meta.pairU;
     connectProvider(0); seedKlines(); poll24h();
   } else if (meta.kind === "si") {
-    seedSiKlines();
+    // SI 无图模式：不再种历史 K 线（图表已取消）；链上直读轮询保留，只喂价格面板与顶栏。
     // 显示源改链上直读（实测 60 秒 13 个新价点，DexScreener 同窗只有 1 个）：
     // 每 1.5 秒读两个池 reserves，与 keeper 结算完全同源同公式；连续失败 3 次回退 DexScreener。
     const g = gen;
@@ -1666,6 +1680,34 @@ function startAssetFeeds(id) {
     poll(); assetPollTimer = setInterval(poll, 2000);
   }
 }
+/* ---------------- SI 价格面板（用户口径：SI 不要 K 线图） ----------------
+   assetId=0 时 .chart-wrap 进 si-mode：canvas（连同其自绘的纵轴、开始价气泡、
+   线尾气泡）与全部 DOM 浮层隐藏，原位换价格面板——当前价（链上池子换算价，
+   数据源不变）、本局开始价、相对开始价的涨跌箭头与幅度。其余品类图表照常。
+   切换沿用既有代际校验：setAsset 先把 S.price/S.lockPrice 清空，面板随之回
+   「—」，新品类第一笔价到达前不显示任何旧品类数字，绝不串台。 */
+function applyChartMode() {
+  const wrap = document.querySelector(".chart-wrap");
+  if (wrap) wrap.classList.toggle("si-mode", S.assetId === 0);
+  if (S.assetId === 0) updateSiPanel();
+}
+function updateSiPanel() {
+  if (S.assetId !== 0) return;
+  const priceEl = $("siPanelPrice");
+  if (!priceEl) return;
+  priceEl.textContent = S.price ? fmtPrice(S.price) : "—";
+  const lockEl = $("siPanelLock");
+  if (lockEl) lockEl.textContent = S.lockPrice ? fmtPrice(S.lockPrice) : "—";
+  const chgEl = $("siPanelChg");
+  if (chgEl) {
+    if (S.price && S.lockPrice) {
+      const d = (S.price - S.lockPrice) / S.lockPrice * 100;
+      chgEl.textContent = (d >= 0 ? "▲ +" : "▼ ") + d.toFixed(2) + "%";
+      chgEl.style.color = d >= 0 ? "var(--red)" : "var(--green)"; // 与 notePrice 的 chgNow 同口径：红涨绿跌
+    } else { chgEl.textContent = "—"; chgEl.style.color = ""; }
+  }
+}
+
 function setAsset(id) {
   if (S.assetId === id) return;
   S.assetId = id;
@@ -1684,6 +1726,7 @@ function setAsset(id) {
   const _cp2 = $("curPrice2"); if (_cp2) _cp2.textContent = "—";
   const _chn = $("chgNow"); if (_chn) _chn.textContent = "";
   const _c24 = $("chg24"); if (_c24) _c24.textContent = "—";
+  applyChartMode(); // SI 进无图价格面板、其余品类恢复图表（此时价格已清空，面板只显示「—」，不串台）
   startAssetFeeds(id);
   if (S.contract) discoverRound();
   tickRound();
@@ -1747,6 +1790,7 @@ function newRoundBuf(r) {
   };
 }
 function sampleRoundBuf(p) {
+  if (S.assetId === 0) return; // SI 无图模式：不采样、不建本局缓冲，隐藏 canvas 不空转
   if (!chainRound || !p || !(p > 0)) return;
   if (chainRound.assetId !== S.assetId || chainRound.mode !== modeNum()) return;
   const nowS = Date.now() / 1000;
@@ -1790,6 +1834,7 @@ function sampleRoundBuf(p) {
    不必等第一笔采样 tick——旧逻辑缓冲只在 sampleRoundBuf 里懒创建，没 tick
    就没缓冲、图上就是十几秒「等待行情」。 */
 function ensureRoundBuf() {
+  if (S.assetId === 0) return; // SI 无图模式：不预建采样缓冲
   if (!chainRound || chainRound.assetId !== S.assetId || chainRound.mode !== modeNum()) return;
   if (!roundBuf || roundBuf.key !== bufKey(chainRound.assetId, chainRound.id)) {
     if (roundBuf && roundBuf.pts.length >= 2 && roundBuf.assetId === S.assetId) frozenBuf = roundBuf;
@@ -3278,7 +3323,7 @@ function drawCandles() {
   }
 }
 
-function drawKline() { if (S.chartType === "line") drawLine(); else drawCandles(); }
+function drawKline() { if (S.assetId === 0) return; /* SI 无图模式：一切绘图入口（rAF/定时器/resize/种子）在此截断 */ if (S.chartType === "line") drawLine(); else drawCandles(); }
 function setChartType(tp) {
   S.chartType = tp === "candle" ? "candle" : "line";
   try { localStorage.setItem("dk_chart_type", S.chartType); } catch (e) {}
@@ -4077,6 +4122,7 @@ function init() {
   safeStep("betBtn", updateBetBtn);
   safeStep("source", () => startSim()); // 打开先跑模拟价兜底，价格/K线立刻有数
   safeStep("provider", () => startAssetFeeds(S.assetId));
+  safeStep("chartMode", applyChartMode); // 默认品类 SI：首屏即无图价格面板
   safeStep("klineSeed", () => { if (ASSETS_META[S.assetId].kind === "crypto") seedKlines(); });
   safeStep("poll24h", poll24h);
   setInterval(poll24h, 30000);
@@ -4097,7 +4143,7 @@ function init() {
   setInterval(() => { if (S.chartType !== "line" && KLINE.dirty) { drawKline(); KLINE.dirty = false; } }, 500);
   // 慢源补点：每 1 秒用当前显示价给本局缓冲补一个点（无新价时即上一价平线段），
   // 保证任何品类一局采样点 ≥30、线不断（快源逐 tick 落点时此补点只刷新尾点）。
-  setInterval(() => { if (S.price) sampleRoundBuf(S.price); }, 1000);
+  setInterval(() => { if (S.price) sampleRoundBuf(S.price); updateSiPanel(); }, 1000);
   window.addEventListener("resize", () => { sizeKline(); drawKline(); });
 }
 document.addEventListener("DOMContentLoaded", init);
