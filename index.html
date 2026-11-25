@@ -1707,48 +1707,28 @@ function startAssetFeeds(id) {
   if (meta.kind === "crypto") {
     SYMBOL = meta.symbol; PAIR_USDT = meta.pairU;
     connectProvider(0); seedKlines(); poll24h();
-    // round28：兜底改走链上喂价（与结算同源）。真机录屏实测：用户的网络能连通
-    // BSC 测试网 RPC（局、余额、结算都正常），但连不上交易所域名——WS 逐笔流和
-    // round27 的 REST 兜底在他手机上一条都没到，线整局冻结、倒计时气泡不出。
-    // keeper 每 30 秒把真实行情推到链上 mock 喂价，前端每 2 秒读一次：走的是
-    // 和读局完全相同的 RPC 通道，价格与结算同源同价，交易所全断也有线。
-    // 链上读不到时才退回交易所 REST（Bitget→Gate）。只用 assetId 守卫不用 gen：
-    // 回退换源会自增 gen，按 gen 守卫会把本兜底误杀。
-    let feedAddr28 = null;
-    const pollFallback = async () => {
-      try {
-        if (!feedAddr28) feedAddr28 = await resolveAssetFeed(id);
-        if (feedAddr28) {
-          const rp = await getReadProvider();
-          if (rp) {
-            const fc = new ethers.Contract(feedAddr28, FEED_ABI, rp);
-            const d = await fc.latestRoundData();
-            const pr = Number(d[1]) / 1e8;
-            if (pr > 0) { notePrice(pr, false, undefined, id); return; }
-          }
-        }
-        throw new Error("chain-feed-bad");
-      } catch (e) {
-        try {
-          const r = await fetch("https://api.bitget.com/api/v2/spot/market/tickers?symbol=" + meta.symbol, { signal: AbortSignal.timeout(4000) });
-          const j = await r.json();
-          const d = j && j.data && j.data[0];
-          const pr = d && parseFloat(d.lastPr);
-          if (pr > 0) { notePrice(pr, false, undefined, id); return; }
-          throw new Error("bitget-bad");
-        } catch (e2) {
-          try {
-            const r2 = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=" + meta.pairU, { signal: AbortSignal.timeout(4000) });
-            const j2 = await r2.json();
-            const d2 = Array.isArray(j2) ? j2[0] : null;
-            const pr2 = d2 && parseFloat(d2.last);
-            if (pr2 > 0) notePrice(pr2, false, undefined, id);
-          } catch (e3) {}
-        }
-      }
+    // round29：兜底只用交易所（用户定版：价格必须来自交易所，链上喂价没有量、
+    // 不作数）。round27 的教训：Bitget/Gate 两家 REST 在用户网络里也可能连不上，
+    // 且 WS 回退链走完要半分钟。改为四家交易所 REST 并行竞速——Binance Vision、
+    // Bitget、Gate、OKX 每 2 秒同时拉，谁先回用谁；外加 WS 逐笔流并行，谁先到
+    // 谁喂价。只用 assetId 守卫不用 gen：回退换源会自增 gen，会误杀本兜底。
+    const fetchOne = async (url, pick) => {
+      const r = await fetch(url, { signal: AbortSignal.timeout(3500) });
+      const pr = pick(await r.json());
+      if (pr > 0) return pr;
+      throw new Error("bad-price");
     };
-    pollFallback();
-    assetPollTimer = setInterval(pollFallback, 2000);
+    const pollExch = () => {
+      let done = false, fails = 0;
+      const ok = (pr) => { if (!done) { done = true; notePrice(pr, false, undefined, id); } };
+      const bad = () => { fails++; };
+      fetchOne("https://data-api.binance.vision/api/v3/ticker/price?symbol=" + meta.symbol, (j) => parseFloat(j && j.price)).then(ok).catch(bad);
+      fetchOne("https://api.bitget.com/api/v2/spot/market/tickers?symbol=" + meta.symbol, (j) => { const d = j && j.data && j.data[0]; return d && parseFloat(d.lastPr); }).then(ok).catch(bad);
+      fetchOne("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=" + meta.pairU, (j) => { const d = Array.isArray(j) ? j[0] : null; return d && parseFloat(d.last); }).then(ok).catch(bad);
+      fetchOne("https://www.okx.com/api/v5/market/ticker?instId=" + meta.symbol.replace("USDT", "-USDT"), (j) => { const d = j && j.data && j.data[0]; return d && parseFloat(d.last); }).then(ok).catch(bad);
+    };
+    pollExch();
+    assetPollTimer = setInterval(pollExch, 2000);
   } else if (meta.kind === "si") {
     // SI 无图模式：不再种历史 K 线（图表已取消）；链上直读轮询保留，只喂价格面板与顶栏。
     // 显示源改链上直读（实测 60 秒 13 个新价点，DexScreener 同窗只有 1 个）：
@@ -4871,7 +4851,10 @@ function init() {
     // 进行中的本局线每帧重绘（缺陷 C 线尾动画的前提）：只在有进行中缓冲时
     // 才逐帧，其余时候仍走脏标记，避免无谓重绘。
     // round15：分时线每帧重绘（线尾缓动的前提，两条渲染路径都受益）；无价时走脏标记。
-    if (S.chartType === "line" && (S.price || KLINE.dirty)) { drawKline(); KLINE.dirty = false; }
+    if (S.chartType === "line" && (S.price || KLINE.dirty)) { drawKline(); KLINE.dirty = false; rafLoop._ld = performance.now(); }
+    // round29：有进行中局时至少每 250ms 重绘一帧——旧逻辑没新价就不重绘，行情
+    // 一卡连倒计时气泡都冻住/消失；现在气泡秒数由 S.cdSec 驱动，与行情解耦。
+    else if (S.chartType === "line" && chainRound && performance.now() - (rafLoop._ld || 0) > 250) { drawKline(); rafLoop._ld = performance.now(); }
     requestAnimationFrame(rafLoop);
   })();
   setInterval(() => { if (S.chartType !== "line" && KLINE.dirty) { drawKline(); KLINE.dirty = false; } }, 500);
