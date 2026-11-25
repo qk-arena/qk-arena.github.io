@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round13">
+<meta name="qk-build" content="round14">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -606,8 +606,7 @@ html{scrollbar-gutter:stable}
 
   <!-- ===== 品类切换（SI 第一，默认 SI） ===== -->
   <div class="asset-bar" id="assetBar">
-    <button class="asset-chip on" data-asset="0">SI</button>
-    <button class="asset-chip" data-asset="1">BTC</button>
+    <button class="asset-chip on" data-asset="1">BTC</button>
     <button class="asset-chip" data-asset="2">ETH</button>
     <button class="asset-chip" data-asset="3">BNB</button>
     <button class="asset-chip" data-asset="4">XAU</button>
@@ -1143,7 +1142,7 @@ function applyI18n() {
 /* ---------------- 状态 ---------------- */
 const S = {
   mode: defaultMode(),        // 上线开局配置决定（默认 speed，2026-11-25 定版）
-  assetId: 0,                 // 品类：0=SI（默认）1=BTC 2=ETH 3=BNB 4=XAU 5=XAG 6=NVDA
+  assetId: 1,                 // 品类：1=BTC（默认）2=ETH 3=BNB 4=XAU 5=XAG 6=NVDA；0=SI 品类已按用户 2026-11-26 指令下架（合约与 keeper 不动，仅前端不展示）
   price: null, open24: null, chg24: null,
   source: null, sourceLabel: "", srcKey: "src.connecting",
   trades: [],                 // {t, isBuy, usd}
@@ -3265,7 +3264,7 @@ function drawCandles() {
   const em = $("chartEmpty");
   if (cs.length < 2) { if (em) em.classList.remove("hide"); return; }
   if (em) em.classList.add("hide");
-  const padR = 66, padL = 6, padT = 12, padB = 18;
+  const padR = 6, padL = 6, padT = 12, padB = 18; // 通铺：绘图区直达右缘，刻度改内嵌
   let hi = -Infinity, lo = Infinity;
   const csAx = cs.slice(-30);
   for (const c of csAx) { if (c.h > hi) hi = c.h; if (c.l < lo) lo = c.l; }
@@ -3301,7 +3300,16 @@ function drawCandles() {
     const yy = y(v);
     ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
     ctx.textAlign = "left";
-    ctx.fillText(fmtPrice(v).replace("$", ""), x1 + 5, yy);
+    { const _lt = fmtPrice(v).replace("$", "");
+      ctx.save();
+      ctx.font = "10px sans-serif";
+      const _lw = ctx.measureText(_lt).width;
+      ctx.fillStyle = "rgba(6,8,12,.55)";
+      ctx.fillRect(x1 - _lw - 10, yy - 7, _lw + 8, 14);
+      ctx.fillStyle = "#8b96ad";
+      ctx.textAlign = "right";
+      ctx.fillText(_lt, x1 - 5, yy);
+      ctx.restore(); }
   }
   // 锁定→收盘区间高亮
   if (S.chartLock) {
@@ -3383,7 +3391,16 @@ function drawCandles() {
     ctx.fillStyle = "rgba(238,241,248,.9)";
     ctx.font = "10px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(fmtPrice(S.price).replace("$", ""), x1 + 5, yy);
+    { const _lt = fmtPrice(S.price).replace("$", "");
+      ctx.save();
+      ctx.font = "10px sans-serif";
+      const _lw = ctx.measureText(_lt).width;
+      ctx.fillStyle = "rgba(6,8,12,.55)";
+      ctx.fillRect(x1 - _lw - 10, yy - 7, _lw + 8, 14);
+      ctx.fillStyle = "#8b96ad";
+      ctx.textAlign = "right";
+      ctx.fillText(_lt, x1 - 5, yy);
+      ctx.restore(); }
   }
 }
 
@@ -3442,7 +3459,7 @@ function drawRoundLine(ctx, W, H, buf) {
   }
   if (!pts.length) { if (em) em.classList.remove("hide"); return; }
   if (em) em.classList.add("hide");
-  const padR = 66, padL = 6, padT = 18, padB = 18;
+  const padR = 6, padL = 6, padT = 18, padB = 18; // 通铺：同 drawLine
   // 纵轴价格锚定网格（第五轮返工 H1）：推翻第三轮「开局 3 秒采样冻结」与
   // 第四轮「开始价 ±0.15% 下限并集」整套旧逻辑（本轮已删除：分位裁剪定轴、
   // 中位数护栏算轴、冻结 + 冲破 20% 扩围、下限并集，以及缓冲上的 axisHi/
@@ -3489,7 +3506,16 @@ function drawRoundLine(ctx, W, H, buf) {
     const yy = y(v);
     ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
     ctx.textAlign = "left";
-    ctx.fillText(fmtPrice(v).replace("$", ""), x1 + 5, yy);
+    { const _lt = fmtPrice(v).replace("$", "");
+      ctx.save();
+      ctx.font = "10px sans-serif";
+      const _lw = ctx.measureText(_lt).width;
+      ctx.fillStyle = "rgba(6,8,12,.55)";
+      ctx.fillRect(x1 - _lw - 10, yy - 7, _lw + 8, 14);
+      ctx.fillStyle = "#8b96ad";
+      ctx.textAlign = "right";
+      ctx.fillText(_lt, x1 - 5, yy);
+      ctx.restore(); }
   }
   const tag = (cx, cy, price, caption, color, place) => {
     ctx.font = "bold 11px sans-serif";
@@ -3609,10 +3635,11 @@ function drawRoundLine(ctx, W, H, buf) {
   ctx.font = "bold 10px sans-serif";
   const pw = ctx.measureText(pv).width + 8;
   ctx.fillStyle = "#f5c542";
-  ctx.fillRect(x1 + 2, hy - 8, pw, 16);
+  const tagX = Math.max(2, Math.min(x1 + 2, W - pw - 2));
+  ctx.fillRect(tagX, hy - 8, pw, 16);
   ctx.fillStyle = "#171204";
   ctx.textAlign = "center";
-  ctx.fillText(pv, x1 + 2 + pw / 2, hy);
+  ctx.fillText(pv, tagX + pw / 2, hy);
   if (live && !ended && S.cdSec !== null && S.cdSec !== undefined && S.cdSec >= 0) {
     const label = S.cdSec + "s";
     ctx.font = "bold 12px sans-serif";
@@ -3706,7 +3733,7 @@ function drawLine() {
   }
   if (pts.length < 2 || !S.price) { if (em) em.classList.remove("hide"); return; }
   if (em) em.classList.add("hide");
-  const padR = 66, padL = 6, padT = 18, padB = 30; // 底部 30px：上行放开始/结束旗标，下行放时间
+  const padR = 6, padL = 6, padT = 18, padB = 30; // 底部 30px：上行放开始/结束旗标，下行放时间
   const winPrices = [];
   for (const k of pts) if (k.t >= t0) winPrices.push(k.p);
   let hi = -Infinity, lo = Infinity;
@@ -3757,7 +3784,16 @@ function drawLine() {
     const yy = y(v);
     ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
     ctx.textAlign = "left";
-    ctx.fillText(fmtPrice(v).replace("$", ""), x1 + 5, yy);
+    { const _lt = fmtPrice(v).replace("$", "");
+      ctx.save();
+      ctx.font = "10px sans-serif";
+      const _lw = ctx.measureText(_lt).width;
+      ctx.fillStyle = "rgba(6,8,12,.55)";
+      ctx.fillRect(x1 - _lw - 10, yy - 7, _lw + 8, 14);
+      ctx.fillStyle = "#8b96ad";
+      ctx.textAlign = "right";
+      ctx.fillText(_lt, x1 - 5, yy);
+      ctx.restore(); }
   }
   if (S.chartLock) {
     const yy = y(S.chartLock.price);
@@ -3853,10 +3889,11 @@ function drawLine() {
   ctx.font = "bold 10px sans-serif";
   const pw = ctx.measureText(pv).width + 8;
   ctx.fillStyle = "#f5c542";
-  ctx.fillRect(x1 + 2, hy - 8, pw, 16);
+  const tagX = Math.max(2, Math.min(x1 + 2, W - pw - 2));
+  ctx.fillRect(tagX, hy - 8, pw, 16);
   ctx.fillStyle = "#171204";
   ctx.textAlign = "center";
-  ctx.fillText(pv, x1 + 2 + pw / 2, hy);
+  ctx.fillText(pv, tagX + pw / 2, hy);
   if (S.cdSec !== null && S.cdSec !== undefined && S.cdSec >= 0) {
     const label = S.cdSec + "s";
     ctx.font = "bold 12px sans-serif";
