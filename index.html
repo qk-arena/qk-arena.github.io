@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round17">
+<meta name="qk-build" content="round18">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -987,7 +987,7 @@ function applyLaunchModes() {
   if (!enabled.includes(S.mode)) S.mode = defaultMode();
   $("modeSpeed").classList.toggle("active", S.mode === "speed");
   $("modeClassic").classList.toggle("active", S.mode === "classic");
-  const at = $("arenaTag"); if (at) at.textContent = S.mode === "speed" ? "1分钟场" : S.mode === "mid" ? "3分钟场" : "5分钟场";
+  const at = $("arenaTag"); if (at) at.textContent = modeLabel(S.mode);
 }
 
 /* ---------------- 合约 ABI ----------------
@@ -1792,11 +1792,17 @@ function updateSiPanel() {
 }
 
 const ASSET_COIN = { 1: "₿", 2: "Ξ", 3: "◆", 4: "Au", 5: "Ag", 6: "N" };
+/* 场次文案统一出口（round18）：走 i18n pair.m1/m3/m5，英文模式不再硬编码中文。
+   顶栏 Logo 旁徽标（arenaTag）与对局卡场次共用此文案、共用 syncArenaTag 同步。
+   注意：页面里已有 modeName(n) 是「数字模式→模式名」的另一个函数，不可同名，故名 modeLabel。 */
+function modeLabel(m) { return t(m === "speed" ? "pair.m1" : m === "mid" ? "pair.m3" : "pair.m5"); }
+function syncArenaTag() { const at = $("arenaTag"); if (at) at.textContent = modeLabel(S.mode); }
 function renderPairCard() {
   const meta = ASSETS_META[S.assetId];
   const c = $("pairCoin"); if (c) c.textContent = ASSET_COIN[S.assetId] || "◆";
   const n = $("pairName"); if (n) n.textContent = meta ? meta.pair : "—";
-  const m = $("pairMode"); if (m) m.textContent = (S.mode === "speed" ? "1" : S.mode === "mid" ? "3" : "5") + "分钟场";
+  const m = $("pairMode"); if (m) m.textContent = modeLabel(S.mode);
+  syncArenaTag(); // round18 缺陷3：徽标跟 S.mode 同步，不再只靠 setMode 尾段那一行（中途抛错就永远不更新）
 }
 /* ---------------- 选择币种弹窗（round17 照竞品：场次页签 + 交易对列表） ---------------- */
 let pickerMode = null;
@@ -2351,6 +2357,7 @@ function refreshPools() {
 }
 function flashOdds(id, v) {
   const el = $(id);
+  if (!el) return; // round18：赔率元素已随新版池子条下线，缺元素直接跳过（旧版在此抛 TypeError）
   const txt = v > 0 ? v.toFixed(2) : "—";
   if (el.textContent !== txt) {
     el.textContent = txt;
@@ -2360,9 +2367,13 @@ function flashOdds(id, v) {
 }
 function renderPools() {
   const L = S.pools.long, Sh = S.pools.short, tot = L + Sh;
-  $("poolLong").textContent = fmt(L);
-  $("poolShort").textContent = fmt(Sh);
-  $("poolTotal").textContent = fmt(tot) + " " + curMeta().sym;
+  // round18 根因修复：poolLong/poolShort 元素已随 round17 新版池子条下线（页面里不存在），
+  // 旧版无守卫直接写 textContent 每次必抛 TypeError——该异常从 tickRound 冒泡进 setMode，
+  // 把 setMode 后半段（arenaTag/renderPairCard）和选币弹窗行点击里的 setAsset 一起打断
+  // （缺陷2 切页签后第一次点行失效、缺陷3 场次徽标不跟随，均为此因）。全部改守卫写法。
+  const _pl = $("poolLong"); if (_pl) _pl.textContent = fmt(L);
+  const _ps = $("poolShort"); if (_ps) _ps.textContent = fmt(Sh);
+  const _pt = $("poolTotal"); if (_pt) _pt.textContent = fmt(tot) + " " + curMeta().sym;
   const feeRate = CONFIG.FEE_BP / 10000;
   let oL, oS;
   if (S.oddsLive && S.contract) {
@@ -4140,12 +4151,30 @@ async function readContract() {
   }
   return _readContract;
 }
+let _statsRetries = 0;
+function scheduleStatsRetry() {
+  // round18 缺陷1：统计不完整（主统计没出数或 24h 人数没回来）时 15 秒后重试，
+  // 最多 8 次；之后由 60 秒定时间隔兜底。旧版唯一重试就是 60 秒间隔，首次调用
+  // 又总跟异步加载的 ethers 抢跑（readContract 返回 null 提前 return），
+  // 真实页面里两项统计长期停在「—」。
+  const cs = S.chainStats;
+  const csOk = !!(cs && (cs.rounds > 0 || cs.paidUsd > 0));
+  if (csOk && S.bettors24 != null) { _statsRetries = 0; return; }
+  if (_statsRetries >= 8) return;
+  _statsRetries++;
+  setTimeout(() => { refreshChainStats(); }, 15000);
+}
 async function refreshChainStats() {
   if (chainStatsBusy) return;
   chainStatsBusy = true;
   try {
     const c = await readContract();
-    if (!c) { chainStatsBusy = false; return; }
+    if (!c) { // ethers 还没加载完 / 合约未配置：人数统计不依赖 readContract，一并触发，并排一次重试
+      chainStatsBusy = false;
+      refreshBettors24h();
+      scheduleStatsRetry();
+      return;
+    }
     // round17 修复：旧版这里有一行读 CONFIG.TOKENS.SI（CONFIG 里根本没有 TOKENS 字段，
     // 代币表是顶层 TOKENS 常量），一执行就抛 TypeError 并被外层 catch 静默吞掉——
     // S.chainStats 永不赋值（已发放金额永远「—」），且后面的 refreshBettors24h() 永远调不到。
@@ -4197,6 +4226,7 @@ async function refreshChainStats() {
   } catch (e) { /* 链上统计失败时继续用本地见证数 */ }
   refreshBettors24h(); // 不依赖主统计成败，独立刷新（内部自带 5 分钟节流）
   chainStatsBusy = false;
+  scheduleStatsRetry(); // round18：没出数就 15 秒后重试，不永久「—」
 }
 let _bettorsBusy = false;
 const _logsContracts = {};
@@ -4488,6 +4518,7 @@ function setMode(m) {
   if (!enabledModes().includes(m)) return; // 未开启的模式不响应
   if (S.mode === m) return;
   S.mode = m;
+  syncArenaTag(); // round18 缺陷3：徽标紧跟 S.mode 先同步，后段任何一步抛错都不再把它落下
   $("modeSpeed").classList.toggle("active", m === "speed");
   $("modeClassic").classList.toggle("active", m === "classic");
   if (S.contract && lastChainId !== null && lastChainId !== S.lastSettledId) pendingSettleId = lastChainId; // 旧模式未结的局登记待结算（F6）
@@ -4498,7 +4529,7 @@ function setMode(m) {
   tickRound();
   refreshResultBarForView(); // 结算条跟随模式（F4）
   renderRecords(); // 第四轮 G2：记录区「上一局」块同步换成当前模式的
-  const at = $("arenaTag"); if (at) at.textContent = m === "speed" ? "1分钟场" : m === "mid" ? "3分钟场" : "5分钟场";
+  syncArenaTag();
   renderPairCard();
   toast(m === "speed" ? t("toast.modeSpeed") : m === "mid" ? t("toast.modeMid") : t("toast.modeClassic"));
   syncModeSheet();
@@ -4522,6 +4553,7 @@ function init() {
   // ethers 动态加载：不堵渲染；拉不到只在气泡里提示，钱包功能不可用，主界面照常显示
   loadEthers().then((ok) => {
     if (!ok) { const g = $("gasNote"); if (g) g.textContent = t("gas.ethersFail"); }
+    else refreshChainStats(); // round18 缺陷1：ethers 一就绪立刻拉统计，不再等 60 秒定时间隔（init 里的首次调用多半抢跑在 ethers 之前）
   });
   safeStep("ref", () => {
     const q = new URLSearchParams(location.search);
