@@ -2103,6 +2103,15 @@ function sampleFlowBuf(p) {
     for (const k of S.linePts) { const ts = k.t / 1000; if (k.p > 0 && nowS - ts <= 1500 && Math.abs(k.p - p) / p <= 0.005) flowPts.push({ t: ts, p: k.p }); }
     flowPts.sort((a, b) => a.t - b.t);
   }
+  const pts0 = flowPts;
+  // 补种：首 tick 抢跑在 K 线种子到货之前时，flowPts 只有右段一小截——种子到货后
+  // 把更早的点补进左段，线在几秒内铺满整幅（round34 实测修复：进站 15 秒图只有右缘一小段线）
+  if (pts0.length && pts0[0].t > nowS - 1400 && Array.isArray(S.linePts) && S.linePts.length > 1) {
+    const head = pts0[0].t;
+    const add = [];
+    for (const k of S.linePts) { const ts = k.t / 1000; if (k.p > 0 && ts < head - 1 && nowS - ts <= 1500 && Math.abs(k.p - p) / p <= 0.005) add.push({ t: ts, p: k.p }); }
+    if (add.length) { flowPts = add.concat(pts0); flowPts.sort((a, b) => a.t - b.t); }
+  }
   const pts = flowPts;
   const last = pts[pts.length - 1];
   // 离群过滤与本局采样同口径：偏离最近 5 点中位数 >0.8% 先丢弃，连续 3 个相隔 ≥1 秒的同向离群才认作真跳变放行
@@ -4117,8 +4126,11 @@ function drawFlowLine(ctx, W, H) {
   const WIN = roundDuration() + 120;
   const t1 = nowS + 2, t0 = t1 - WIN;
   const cr = (typeof chainRound !== "undefined" && chainRound && chainRound.assetId === S.assetId && chainRound.mode === modeNum()) ? chainRound : null;
-  const lockP = cr && Number(cr.lockPrice) > 0 ? Number(cr.lockPrice) / 1e8 : (S.lockPrice || null);
-  const startS = cr ? cr.startTime : null;
+  // 开始价/起点的主数据源是 S.chartLock {price, time}：tickRound 与 tickChainRound
+  // 两条路径都会写它（无钱包的本地局、连钱包的链上局通用）；round33 只认 chainRound，
+  // 无钱包打开时 chainRound 为空、开始标记整段不画——round34 云端实测抓到，现改 chartLock 优先。
+  const lockP = S.chartLock ? S.chartLock.price : (cr && Number(cr.lockPrice) > 0 ? Number(cr.lockPrice) / 1e8 : (S.lockPrice || null));
+  const startS = S.chartLock ? S.chartLock.time : (cr ? cr.startTime : null);
   let pts = [];
   for (let i = 0; i < flowPts.length; i++) {
     if (flowPts[i].t >= t0) { if (i > 0) pts.push(flowPts[i - 1]); pts = pts.concat(flowPts.slice(i)); break; }
@@ -4129,7 +4141,7 @@ function drawFlowLine(ctx, W, H) {
   if (em) em.classList.add("hide");
   const padR = 6, padL = 6, padT = 18, padB = 18;
   const anchor = lockP || pts[pts.length - 1].p;
-  const gKey = S.assetId + ":" + (cr ? cr.id : "x");
+  const gKey = S.assetId + ":" + (startS || (cr ? cr.id : "x"));
   if (!flowMeta.grid || flowMeta.gridKey !== gKey) {
     const step = niceGridStep(anchor * 0.0005);
     flowMeta.grid = { step, gLo: Math.floor(anchor * (1 - 0.0015) / step), gHi: Math.ceil(anchor * (1 + 0.0015) / step) };
