@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round7">
+<meta name="qk-build" content="round8">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -323,7 +323,8 @@ input{font-family:inherit}
 .rdot.long{background:#1ecb6e}.rdot.short{background:#f6465d}.rdot.draw{background:#8b96ad}
 .road-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;min-height:14px}
 .road-grid .rdot{width:14px;height:14px}
-.road-empty{color:var(--muted);font-size:12px}
+.road-empty{color:var(--muted);font-size:12px;white-space:nowrap;position:absolute;left:2px;top:50%;transform:translateY(-50%)}
+.road-grid{position:relative}
 /* 单段制结果条（2026-11-25）：干净利落，不遮图、无角色跳出；淡入上滑 + 数字滚动 */
 /* 品类栏 + 大倒计时（2026-11-25）：倒计时必须一屏可见——旧倒计时被 #betPanel .countdown{display:none} 藏死，
    这次把大倒计时独立放在图表上方，品类栏在其上方。 */
@@ -529,7 +530,7 @@ html{scrollbar-gutter:stable}
   .road-head h2{font-size:12px}
   .road-grid{grid-template-rows:repeat(2,22px) !important;grid-auto-columns:22px !important;gap:4px !important;margin-top:4px !important}
   .road-grid .rdot{width:22px !important;height:22px !important}
-  #chartCard{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-top:6px}
+  #chartCard{flex:1 1 auto;min-height:0;max-height:352px;display:flex;flex-direction:column;margin-top:6px}
   .chart-wrap{flex:1 1 auto;min-height:0}
   .chart-wrap.si-mode .si-panel{min-height:0}
   #kline{height:100% !important}
