@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round15">
+<meta name="qk-build" content="round16">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -944,9 +944,11 @@ function setCurrency(c) {
   const amt = myBetAmount();
   if (!(amt >= m.min && amt <= m.max)) $("betAmount").value = m.def;
   if (chips[1]) chips[1].classList.add("sel");
-  refreshPools();
-  refreshBalances();
+  const _al = document.querySelector('[data-i18n="bet.amount"]');
+  if (_al) _al.textContent = LANG === "en" ? "Bet amount (" + m.sym + ")" : "下注金额（" + m.sym + "）";
   updateCalc(); updateBetBtn();
+  refreshPools();
+  try { refreshBalances(); } catch (e) {}
 }
 
 /* ---------------- ethers 动态加载 ----------------
@@ -2310,7 +2312,7 @@ function settlePrevRound(prevId, roundData) {
   try { localStorage.setItem("dk_stats_v1", JSON.stringify(S.stats)); } catch (e) {}
   S.lastSettledId = prevId;
   renderStats();
-  if (S.contract) refreshChainStats();
+  refreshChainStats();
   if (window.__bgBurst) window.__bgBurst(rec.result);
   const csS = $("chartState"); if (csS) csS.textContent = t("state.settling");
   drawKline();
@@ -2320,8 +2322,10 @@ function settlePrevRound(prevId, roundData) {
 function refreshPools() {
   if (CONFIG.CONTRACT_ADDRESS && S.contract && S.roundId !== null && S.roundId !== undefined) {
     const _isU = S.currency === "USDT";
+    const _cur = S.currency, _rid = S.roundId; // round16 竞态守卫
     const _oddsP = _isU ? S.contract.getOddsToken(S.roundId, TOKENS.USDT.address) : S.contract.getOdds(S.roundId);
     _oddsP.then((o) => {
+      if (S.currency !== _cur || S.roundId !== _rid) return;
       S.pools.long = Number(ethers.formatUnits(o.longPool !== undefined ? o.longPool : o[0], TOKEN.decimals));
       S.pools.short = Number(ethers.formatUnits(o.shortPool !== undefined ? o.shortPool : o[1], TOKEN.decimals));
       const lpu = Number(o.longPayoutPerUnit !== undefined ? o.longPayoutPerUnit : o[2]);
@@ -2332,6 +2336,7 @@ function refreshPools() {
       renderPools();
     }).catch(() => { renderPools(); });
     S.contract.getRound(S.roundId).then((rd) => {
+      if (S.currency !== _cur || S.roundId !== _rid) return;
       const r = normRound(rd);
       if (_isU) { S.pools.long = Number(ethers.formatUnits(r.longPoolUsdt, 18)); S.pools.short = Number(ethers.formatUnits(r.shortPoolUsdt, 18)); }
       else { S.pools.long = Number(ethers.formatUnits(r.longPool, TOKEN.decimals)); S.pools.short = Number(ethers.formatUnits(r.shortPool, TOKEN.decimals)); }
@@ -3765,11 +3770,11 @@ function drawRoundLine(ctx, W, H, buf) {
   // 不再攒几秒后垂直跳一截。历史点位一律不动，只动线尾这一个渲染点。
   let tailP = pts[pts.length - 1].p;
   if (live && !ended && sm.length) {
-    const target = sm[sm.length - 1].p;
+    const target = pts[pts.length - 1].p; // round16：线尾目标 = 原始最新价（不再追平滑后的滞后点）
     if (buf.animP == null) buf.animP = target;
     const dtF = buf.animAt ? Math.min(0.1, (nowMs - buf.animAt) / 1000) : 0.016;
     buf.animAt = nowMs;
-    buf.animP += (target - buf.animP) * (1 - Math.exp(-dtF / 0.12));
+    buf.animP += (target - buf.animP) * (1 - Math.exp(-dtF / 0.30)); // round16：τ 0.12→0.30，滑行肉眼可见
     tailP = buf.animP;
     const nowSec = nowMs / 1000;
     const lastSm = sm[sm.length - 1];
@@ -4029,7 +4034,7 @@ function drawLine() {
   if (S._animP == null || !(S._animP > 0)) S._animP = S.price;
   const _dtF = S._animAt ? Math.min(0.1, (now - S._animAt) / 1000) : 0.016;
   S._animAt = now;
-  S._animP += (S.price - S._animP) * (1 - Math.exp(-_dtF / 0.12));
+  S._animP += (S.price - S._animP) * (1 - Math.exp(-_dtF / 0.30)); // round16：τ 同步 0.30
   const dispP = Math.abs(S.price - S._animP) < S.price * 1e-7 ? S.price : S._animP;
   const hx = tx(Math.min(now, t1)), hy = y(dispP);
   const med = pts.map((k, i) => {
@@ -4124,10 +4129,21 @@ function drawLine() {
   if (S._pendingTags) { for (const fn of S._pendingTags) fn(); S._pendingTags = null; }
 }
 let chainStatsBusy = false;
+async function readContract() {
+  if (S.contract) return S.contract;
+  if (typeof ethers === "undefined" || !CONFIG.CONTRACT_ADDRESS) return null;
+  if (!_readContract) {
+    const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+    _readContract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, BATTLE_ABI, rp);
+  }
+  return _readContract;
+}
 async function refreshChainStats() {
-  if (!S.contract || chainStatsBusy) return;
+  if (chainStatsBusy) return;
   chainStatsBusy = true;
   try {
+    const c = await readContract();
+    if (!c) { chainStatsBusy = false; return; }
     const token = CONFIG.TOKENS.SI.addressesByChain[CONFIG.CHAIN_ID];
     let cache = { scanned: { 0: 0, 1: 0, 2: 0 }, paid: 0, paidU: 0, settled: 0 };
     try { cache = JSON.parse(localStorage.getItem("dk_stats_chain_v2") || "null") || cache; } catch (e) {}
@@ -4135,11 +4151,11 @@ async function refreshChainStats() {
     if (cache.paidU === undefined) cache.paidU = 0;
     for (const m of [0, 1, 2]) {
       let latest = 0;
-      for (let a = 0; a <= 6; a++) { try { latest = Math.max(latest, Number(await S.contract.latestRoundId(m, a))); } catch (e) {} }
+      for (let a = 0; a <= 6; a++) { try { latest = Math.max(latest, Number(await c.latestRoundId(m, a))); } catch (e) {} }
       let from = Math.max(cache.scanned[m] || 0, latest - 400);
       for (let id = from + 1; id <= latest; id += 20) {
         const batch = [];
-        for (let j = id; j < Math.min(id + 20, latest + 1); j++) batch.push(S.contract.getRound(j));
+        for (let j = id; j < Math.min(id + 20, latest + 1); j++) batch.push(c.getRound(j));
         const rounds = await Promise.all(batch);
         for (const r of rounds) {
           if (Number(r.status) === 2) {
@@ -4172,15 +4188,17 @@ let _bettorsBusy = false;
 async function refreshBettors24h() {
   // 24 小时交易人数（顶部复刻）：扫最近 24h 的 BetPlaced 事件数独立下注地址，
   // 分块查、5 分钟缓存；失败保持旧值，不阻塞主统计。
-  if (!S.contract || !S.provider || _bettorsBusy) return;
+  if (_bettorsBusy) return;
   if (S._bettorsAt && Date.now() - S._bettorsAt < 300000) return;
+  const c = await readContract();
+  if (!c || !c.runner) return;
   _bettorsBusy = true;
   try {
-    const bn = await S.provider.getBlockNumber();
+    const bn = await c.runner.getBlockNumber();
     const from = Math.max(0, bn - 28800);
     const users = new Set();
     for (let b = from; b <= bn; b += 3000) {
-      const evts = await S.contract.queryFilter(S.contract.filters.BetPlaced(), b, Math.min(b + 2999, bn));
+      const evts = await c.queryFilter(c.filters.BetPlaced(), b, Math.min(b + 2999, bn));
       for (const e of evts) { if (e.args && e.args.user) users.add(e.args.user.toLowerCase()); }
     }
     S.bettors24 = users.size;
@@ -4565,7 +4583,17 @@ function init() {
   setInterval(() => { if (S.chartType !== "line" && KLINE.dirty) { drawKline(); KLINE.dirty = false; } }, 500);
   // 慢源补点：每 1 秒用当前显示价给本局缓冲补一个点（无新价时即上一价平线段），
   // 保证任何品类一局采样点 ≥30、线不断（快源逐 tick 落点时此补点只刷新尾点）。
-  setInterval(() => { if (S.price) sampleRoundBuf(S.price); updateSiPanel(); }, 1000);
+  setInterval(() => { updateSiPanel(); }, 1000);
+  refreshChainStats(); setInterval(() => { refreshChainStats(); }, 60000); // round16：顶部统计游客也可见，进站即拉、每分钟刷新
+  // round16 丝滑采样：每 250ms 沿缓动轨迹给本局缓冲落一个点（τ=0.35 向真实价趋近），
+  // 慢源（REST 1 秒一价）之间不再是 1 秒一格的台阶；落点终点恒为真实价，只插值不造价。
+  setInterval(() => {
+    if (!S.price) return;
+    if (S._easeP == null || !(S._easeP > 0)) S._easeP = S.price;
+    S._easeP += (S.price - S._easeP) * (1 - Math.exp(-0.25 / 0.35));
+    if (Math.abs(S.price - S._easeP) < S.price * 1e-7) S._easeP = S.price;
+    sampleRoundBuf(S._easeP);
+  }, 250);
   window.addEventListener("resize", () => { sizeKline(); drawKline(); });
 }
 document.addEventListener("DOMContentLoaded", init);
