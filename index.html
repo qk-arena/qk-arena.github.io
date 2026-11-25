@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round6">
+<meta name="qk-build" content="round7">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -3714,11 +3714,21 @@ function drawLine() {
   for (const k of pts) { if (k.t >= t0) { if (k.p > hi) hi = k.p; if (k.p < lo) lo = k.p; } }
   const padV = Math.max((hi - lo) * 0.07, S.price * 0.000025);
   hi += padV; lo -= padV;
-  if (!S.axis) S.axis = { hi, lo };
-  S.axis.hi += (hi - S.axis.hi) * 0.22;
-  S.axis.lo += (lo - S.axis.lo) * 0.22;
-  hi = S.axis.hi; lo = S.axis.lo;
-  for (const k of pts) { if (k.t >= t0) { if (k.p > hi) hi = k.p; if (k.p < lo) lo = k.p; } }
+  /* 纵轴锚定网格（第七轮，主代理直改）：旧逻辑 S.axis 每帧按 0.22 向数据范围
+     收敛，刻度整局持续漂移——这是历轮实测「间距 10.86→14.87、17.45→55.41」
+     的真源头（实际渲染一直是这条路径，本局缓冲路径在真实浏览器里常年不接管）。
+     改法：步长按现价量级取 nice 步长并整局锁定；窗口以整数步索引存 S.axis，
+     按本局窗口+品类+模式隔离；局内只许整步外扩、永不收缩，已出现的刻度价位
+     整局永不改变（扩围只在上/下缘新增刻度）。 */
+  const _axKey = (win && win.start ? win.start : 0) + ":" + S.assetId + ":" + S.mode;
+  if (!S.axis || S.axis.key !== _axKey) {
+    const _step = niceGridStep(S.price * 0.0005);
+    S.axis = { key: _axKey, step: _step, gLo: Math.floor(lo / _step), gHi: Math.ceil(hi / _step) };
+  } else {
+    if (lo < S.axis.gLo * S.axis.step) S.axis.gLo = Math.floor(lo / S.axis.step);
+    if (hi > S.axis.gHi * S.axis.step) S.axis.gHi = Math.ceil(hi / S.axis.step);
+  }
+  hi = S.axis.gHi * S.axis.step; lo = S.axis.gLo * S.axis.step;
   const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
   const x0 = padL, x1 = W - padR;
   const tx = (ms) => x0 + Math.max(0, Math.min(1, (ms - t0) / (t1 - t0))) * (x1 - x0);
@@ -3730,8 +3740,8 @@ function drawLine() {
   ctx.strokeStyle = "rgba(42,50,64,.55)";
   ctx.fillStyle = "#8b96ad";
   ctx.lineWidth = 1;
-  for (let i = 0; i <= 3; i++) {
-    const v = lo + (hi - lo) * i / 3;
+  for (let k = S.axis.gLo; k <= S.axis.gHi; k++) {
+    const v = k * S.axis.step;
     const yy = y(v);
     ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
     ctx.textAlign = "left";
