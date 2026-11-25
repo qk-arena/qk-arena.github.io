@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round10">
+<meta name="qk-build" content="round11">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -349,6 +349,12 @@ input{font-family:inherit}
 .result-bar .rb-prices{flex:1;font-size:12px;color:#aeb8cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .result-bar .rb-amt{font-weight:800;font-size:16px;white-space:nowrap}
 .result-bar .rb-amt.pos{color:#2fbf71}.result-bar .rb-amt.neg{color:#ff8fa5}.result-bar .rb-amt.flat{color:#e9cf8f}
+.result-bar.win-celebrate{animation:rbWinGlow 1.1s ease-in-out 2}
+@keyframes rbWinGlow{0%,100%{box-shadow:0 0 0 rgba(245,197,66,0)}50%{box-shadow:0 0 34px rgba(245,197,66,.9)}}
+.cd321{display:none !important}
+.big-cd-time{display:inline-block}
+.big-cd.cd-urgent .big-cd-time{color:#ff5d47;animation:cdUrgentPulse .5s ease-in-out infinite alternate}
+@keyframes cdUrgentPulse{from{transform:scale(1)}to{transform:scale(1.14)}}
 .cd321{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:5}
 .cd321.show{display:flex}
 .cd321-num{font-size:64px;font-weight:900;line-height:1;color:#f5c542;text-shadow:0 0 24px rgba(245,197,66,.55),0 2px 0 rgba(0,0,0,.35)}
@@ -2172,6 +2178,12 @@ function settlePrevRound(prevId, roundData) {
     });
   }
   showResultBar(rec, myNet, myStake);
+  if (myWin && (typeof FX === "undefined" || FX.on)) {
+    // 赢局效果（用户 2026-11-26 要求补）：金币纸屑 + 结果条金光，不弹遮挡式弹窗
+    try { launchConfetti(); } catch (e) {}
+    const rb = document.querySelector(".result-bar");
+    if (rb) { rb.classList.remove("win-celebrate"); void rb.offsetWidth; rb.classList.add("win-celebrate"); }
+  }
   renderRoad();
   S.stats.rounds++;
   S.stats.paid += (pools.long || 0) + (pools.short || 0);
@@ -2739,15 +2751,12 @@ function flashScreen() {
   f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
 }
 function updateCd321(left) {
+  // 倒计时改版（用户 2026-11-26：原来的居中大数字太丑）：不再弹 3·2·1 大字；
+  // 最后 5 秒改由顶栏倒计时变红脉冲 + 线尾秒数气泡变红来提示。
   const el = $("cd321");
-  if (!el) return;
-  if (left >= 1 && left <= 3) {
-    const n = $("cd321Num");
-    if (n) n.textContent = left;
-    el.classList.add("show");
-  } else {
-    el.classList.remove("show");
-  }
+  if (el) el.classList.remove("show");
+  const cd = $("bigCd");
+  if (cd) cd.classList.toggle("cd-urgent", left >= 1 && left <= 5);
 }
 function showRoundTransition(id) {
   if (!FX.on) return;
@@ -3662,11 +3671,13 @@ function drawLine() {
   // {start: 局开始-10s, end: 局结束+14s}，这里还原为局本身并留 4 秒小尾；
   // 无有效 viewWin（行情预热期）时回退原 15 分钟滚动窗口。
   let t0 = now - 900000, t1 = now + 5000;
+  let roundWin = false;
   if (win && win.start && win.end && (win.end - win.start) <= 344 && win.end * 1000 > now - 3600000) {
     // 右侧填满（用户 2026-11-26）：窗口左移 30 秒，把开局前 30 秒的真实走势
     // 画在左段，开局虚线落在约 1/3 处，线从第一秒起就铺满整幅，不再左挤右空
     t0 = (win.start + 10) * 1000 - 30000;
     t1 = (win.end - 14) * 1000 + 4000;
+    roundWin = true;
   }
   rebuildLineTicks();
   const livePts = S.ticks.filter((k) => k.t >= t0 - 30000 && k.t <= now + 1000);
@@ -3697,7 +3708,7 @@ function drawLine() {
   }
   if (pts.length < 2 || !S.price) { if (em) em.classList.remove("hide"); return; }
   if (em) em.classList.add("hide");
-  const padR = 66, padL = 6, padT = 18, padB = 18;
+  const padR = 66, padL = 6, padT = 18, padB = 30; // 底部 30px：上行放开始/结束旗标，下行放时间
   const winPrices = [];
   for (const k of pts) if (k.t >= t0) winPrices.push(k.p);
   let hi = -Infinity, lo = Infinity;
@@ -3877,6 +3888,17 @@ function drawLine() {
   ctx.fillText(fmtT(t0), x0, H - 8);
   ctx.textAlign = "right";
   ctx.fillText(fmtT(t1), x1, H - 8);
+  if (roundWin) {
+    // 开始/结束旗标（对齐竞品版式）：开局点金色「开始」、结束点灰色「结束」，钉在底部旗标行
+    const fxS = x0 + (30000 / (t1 - t0)) * (x1 - x0);
+    const fxE = x0 + ((t1 - 4000 - t0) / (t1 - t0)) * (x1 - x0);
+    ctx.font = "bold 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#f5c542";
+    ctx.fillText("⚑ 开始", fxS, H - 19);
+    ctx.fillStyle = "#5d6a86";
+    ctx.fillText("⚑ 结束", fxE, H - 19);
+  }
   // 开始/结束价标签最后上屏（F2）：压在线体之上，数字不被线划过
   if (S._pendingTags) { for (const fn of S._pendingTags) fn(); S._pendingTags = null; }
 }
