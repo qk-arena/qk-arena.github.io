@@ -4064,7 +4064,8 @@ function drawLine() {
   if (em) em.classList.add("hide");
   const padR = 6, padL = 6, padT = 18, padB = 30; // 底部 30px：上行放开始/结束旗标，下行放时间
   const winPrices = [];
-  for (const k of pts) { if (k.t < t0) continue; if (buf.lockPrice && Math.abs(k.p - buf.lockPrice) / buf.lockPrice > 0.02) continue; winPrices.push(k.p); }
+  const lkP = (typeof chainRound !== "undefined" && chainRound && chainRound.lockPrice) ? Number(chainRound.lockPrice) / 1e8 : null;
+  for (const k of pts) { if (k.t < t0) continue; if (lkP && Math.abs(k.p - lkP) / lkP > 0.02) continue; winPrices.push(k.p); }
   // 纵轴只看最近 60% 的点：早段的高低点不再把画面压扁，线贴着当前行情走
   if (winPrices.length > 40) winPrices.splice(0, Math.floor(winPrices.length * 0.4));
   let hi = -Infinity, lo = Infinity;
