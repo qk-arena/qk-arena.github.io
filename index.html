@@ -347,6 +347,7 @@ input{font-family:inherit}
 .chart-tools{position:absolute;left:10px;bottom:10px;z-index:6;display:flex;gap:2px;background:rgba(16,20,30,.88);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:3px}
 .ctool{width:34px;height:24px;border:0;border-radius:999px;background:transparent;color:#8b96ad;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .ctool.sel{background:#2a3040;color:#fff}
+.bgm-chart-btn{position:absolute;left:10px;top:96px;z-index:6;width:32px;height:32px;border-radius:50%;border:1px solid rgba(255,255,255,.10);background:rgba(16,20,30,.82);color:#fff;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .cur-switch{display:flex;gap:6px;margin:2px 0 10px}
 .cur-btn{flex:1;padding:8px 0;border-radius:10px;border:1px solid var(--line);background:#141a28;color:var(--muted);font-size:13.5px;font-weight:700;cursor:pointer}
 .cur-btn.sel{background:linear-gradient(180deg,#ffe9a8,#f5c542);color:#171204;border-color:transparent}
@@ -693,7 +694,7 @@ html{scrollbar-gutter:stable}
       <span class="round-id" id="roundId">第 — 局</span>
       <span class="chart-legend"><span class="lg-up">■ <span data-i18n="chart.up">涨</span></span> <span class="lg-down">■ <span data-i18n="chart.down">跌</span></span> <span id="chartSrc">—</span></span></div>
     <div class="lock-price" style="display:none"><span data-i18n="price.lock">开始价</span> <b id="lockPrice">—</b>　·　<span data-i18n="price.cur">当前价</span> <b id="curPrice2">—</b>　·　<span data-i18n="price.chg">涨跌</span> <b id="chgNow">—</b></div>
-    <div class="chart-wrap"><div class="chart-chip" id="chartChip"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div></div><div class="chart-tools"><button id="ctLine" class="ctool sel" aria-label="分时线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,16 7,10 11,13 16,6 22,8"/></svg></button><button id="ctCandle" class="ctool" aria-label="K线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v2M7 15v2M17 6v2M17 17v2"/><rect x="4.5" y="6" width="5" height="9" rx="1"/><rect x="14.5" y="8" width="5" height="9" rx="1"/></svg></button></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div><div class="duo-fx" id="duoFx"><div class="duo-result" id="duoResult"></div><div class="fighter f-long" id="fLong"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#1ecb6e"/><path d="M40 25 L40 47" stroke="#1ecb6e" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看涨</div></div><div class="duo-vs">VS</div><div class="fighter f-short" id="fShort"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#f6465d"/><path d="M40 25 L40 47" stroke="#f6465d" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看跌</div></div></div><div class="si-panel" id="siPanel"><div class="si-panel-label">SI/USDT · <span data-i18n="price.cur">当前价</span></div><div class="si-panel-price" id="siPanelPrice">—</div><div class="si-panel-row"><span><span data-i18n="price.roundLock">本局开始价</span> <b id="siPanelLock">—</b></span><span class="si-panel-chg" id="siPanelChg">—</span></div></div></div>
+    <div class="chart-wrap"><div class="chart-chip" id="chartChip"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div></div><div class="chart-tools"><button id="ctLine" class="ctool sel" aria-label="分时线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,16 7,10 11,13 16,6 22,8"/></svg></button><button id="ctCandle" class="ctool" aria-label="K线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v2M7 15v2M17 6v2M17 17v2"/><rect x="4.5" y="6" width="5" height="9" rx="1"/><rect x="14.5" y="8" width="5" height="9" rx="1"/></svg></button></div><button id="bgmBtn2" class="bgm-chart-btn" aria-label="音乐开关 / Music">🔊</button><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div><div class="duo-fx" id="duoFx"><div class="duo-result" id="duoResult"></div><div class="fighter f-long" id="fLong"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#1ecb6e"/><path d="M40 25 L40 47" stroke="#1ecb6e" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看涨</div></div><div class="duo-vs">VS</div><div class="fighter f-short" id="fShort"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#f6465d"/><path d="M40 25 L40 47" stroke="#f6465d" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看跌</div></div></div><div class="si-panel" id="siPanel"><div class="si-panel-label">SI/USDT · <span data-i18n="price.cur">当前价</span></div><div class="si-panel-price" id="siPanelPrice">—</div><div class="si-panel-row"><span><span data-i18n="price.roundLock">本局开始价</span> <b id="siPanelLock">—</b></span><span class="si-panel-chg" id="siPanelChg">—</span></div></div></div>
   </section>
 
   <!-- ===== 下注面板 ===== -->
@@ -1338,6 +1339,7 @@ function notePrice(p, _legacyFromSim, g, assetId) {
   }
   S.price = p;
   sampleRoundBuf(p); // 本局采样缓冲（图表返工）：只采真实价（演示价路径已删，见 F3）
+  sampleFlowBuf(p); // round33 流水采样：跨局连续、永不按局清空（竞品同款一条线）
   const pel = $("price");
   if (pel) {
     pel.textContent = fmtPrice(p);
@@ -2080,6 +2082,46 @@ function sampleRoundBuf(p) {
   if (last && nowS - last.t < 0.12 && last.t > roundBuf.startTime + 0.5) { last.p = p; last.t = nowS; if (typeof KLINE !== "undefined") KLINE.dirty = true; return; }
   pts.push({ t: nowS, p });
   if (pts.length > 1500) pts.splice(0, pts.length - 1500);
+  if (typeof KLINE !== "undefined") KLINE.dirty = true;
+}
+/* round33 流水线采样（竞品定版，用户 2026-11-26 录屏对照）：价格线只有一条，
+   跨局连续滚动——局结束不清线、不重画。采样只按品类隔离（切品类才换），
+   局与局之间什么都不清；窗口外的旧点按时间滚动裁掉（保留 1500 秒）。 */
+let flowPts = [];      // { t(秒), p } 当前品类连续采样序列
+let flowMeta = { assetId: null, dropRun: 0, dropAt: 0, animP: null, animAt: 0, grid: null, gridKey: "" };
+function sampleFlowBuf(p) {
+  if (S.assetId === 0) return; // SI 无图模式
+  if (!p || !(p > 0)) return;
+  if (flowMeta.assetId !== S.assetId) {
+    flowPts = [];
+    flowMeta = { assetId: S.assetId, dropRun: 0, dropAt: 0, animP: null, animAt: 0, grid: null, gridKey: "" };
+  }
+  const nowS = Date.now() / 1000;
+  // 冷启动种子：K 线采样点先把窗口铺满，一进场线就是满幅的（竞品同款），随后被真 tick 逐步顶替。
+  // 只收与首笔真价偏差 ≤0.5% 的种子点：切品类后 S.linePts 可能还是旧品类的，价位对不上的一律不要，宁可线短也不能画错品类的线。
+  if (!flowPts.length && Array.isArray(S.linePts) && S.linePts.length > 1) {
+    for (const k of S.linePts) { const ts = k.t / 1000; if (k.p > 0 && nowS - ts <= 1500 && Math.abs(k.p - p) / p <= 0.005) flowPts.push({ t: ts, p: k.p }); }
+    flowPts.sort((a, b) => a.t - b.t);
+  }
+  const pts = flowPts;
+  const last = pts[pts.length - 1];
+  // 离群过滤与本局采样同口径：偏离最近 5 点中位数 >0.8% 先丢弃，连续 3 个相隔 ≥1 秒的同向离群才认作真跳变放行
+  if (pts.length >= 4) {
+    const recent = pts.slice(-5).map((k) => k.p).sort((a, b) => a - b);
+    const med = recent[Math.floor(recent.length / 2)];
+    if (med > 0 && Math.abs(p - med) / med > 0.008) {
+      if (flowMeta.dropAt && nowS - flowMeta.dropAt < 1) return;
+      flowMeta.dropAt = nowS;
+      flowMeta.dropRun = (flowMeta.dropRun || 0) + 1;
+      if (flowMeta.dropRun < 3) return;
+      flowMeta.dropRun = 0;
+    } else flowMeta.dropRun = 0;
+  }
+  // 逐 tick 尾点刷新（120ms 内直接改尾点，线尾永远在动）
+  if (last && nowS - last.t < 0.12 && nowS - last.t >= 0) { last.p = p; last.t = nowS; if (typeof KLINE !== "undefined") KLINE.dirty = true; return; }
+  pts.push({ t: nowS, p });
+  while (pts.length && pts[0].t < nowS - 1500) pts.shift();
+  if (pts.length > 6000) pts.splice(0, pts.length - 6000);
   if (typeof KLINE !== "undefined") KLINE.dirty = true;
 }
 /* 链上局一发现到就先把缓冲建好（第二轮返工·缺陷 A）：开始价锚点立刻能画，
@@ -3493,12 +3535,12 @@ setInterval(() => {
 document.addEventListener("pointerdown", () => {
   try {
     if (BGM.muted) return;
-    if (BGM.ctx && BGM.ctx.state === "suspended") BGM.ctx.resume();
+    if (BGM.ctx && BGM.ctx.state !== "running") BGM.ctx.resume();
     else if (!BGM.on) startBgm();
   } catch (e) {}
 }, true);
 document.addEventListener("visibilitychange", () => {
-  try { if (!document.hidden && BGM.ctx && BGM.ctx.state === "suspended" && !BGM.muted) BGM.ctx.resume(); } catch (e) {}
+  try { if (!document.hidden && BGM.ctx && BGM.ctx.state !== "running" && !BGM.muted) BGM.ctx.resume(); } catch (e) {}
 });
 function startBgm() {
   if (!bgmEnsure()) return;
@@ -3514,6 +3556,8 @@ function startBgm() {
 function updateBgmBtn() {
   const b = $("bgmBtn");
   if (b) b.textContent = !BGM.muted ? "🔊" : "🔇";
+  const b2 = $("bgmBtn2"); // round33：图表上的喇叭开关（竞品同款位置），与设置页开关同步
+  if (b2) b2.textContent = !BGM.muted ? "🔊" : "🔇";
 }
 function toggleBgm() {
   if (!BGM.ctx) { startBgm(); return; }
@@ -4061,6 +4105,231 @@ function drawRoundLine(ctx, W, H, buf) {
   ctx.textAlign = "right";
   ctx.fillText(fmtT(buf.lockTime * 1000), x1, H - 8);
 }
+/* round33 流水线渲染（竞品定版）：横轴 = 滚动时间窗 [now-(局时长+120秒), now]，
+   线随时间流水式左移，跨局不断、不重画；颜色永远橙色一色到底，不随涨跌
+   与阶段变色（推翻本局线的整线变色）。本局只是这条线上的一个区间：开始价
+   金色虚线 + 起点圆点 + 开始价签，结算点用结束价签标出，线继续流过它。
+   纵轴网格按局锚定开始价、整局只整步外扩，换局重锚一次，线本身不受影响。 */
+function drawFlowLine(ctx, W, H) {
+  const em = $("chartEmpty");
+  const nowMs = Date.now();
+  const nowS = nowMs / 1000;
+  const WIN = roundDuration() + 120;
+  const t1 = nowS + 2, t0 = t1 - WIN;
+  const cr = (typeof chainRound !== "undefined" && chainRound && chainRound.assetId === S.assetId && chainRound.mode === modeNum()) ? chainRound : null;
+  const lockP = cr && Number(cr.lockPrice) > 0 ? Number(cr.lockPrice) / 1e8 : (S.lockPrice || null);
+  const startS = cr ? cr.startTime : null;
+  let pts = [];
+  for (let i = 0; i < flowPts.length; i++) {
+    if (flowPts[i].t >= t0) { if (i > 0) pts.push(flowPts[i - 1]); pts = pts.concat(flowPts.slice(i)); break; }
+  }
+  if (!pts.length) pts = flowPts.slice(-2);
+  pts = pts.filter((k) => k.t <= nowS + 0.5);
+  if (pts.length < 2) { if (em) em.classList.remove("hide"); return; }
+  if (em) em.classList.add("hide");
+  const padR = 6, padL = 6, padT = 18, padB = 18;
+  const anchor = lockP || pts[pts.length - 1].p;
+  const gKey = S.assetId + ":" + (cr ? cr.id : "x");
+  if (!flowMeta.grid || flowMeta.gridKey !== gKey) {
+    const step = niceGridStep(anchor * 0.0005);
+    flowMeta.grid = { step, gLo: Math.floor(anchor * (1 - 0.0015) / step), gHi: Math.ceil(anchor * (1 + 0.0015) / step) };
+    flowMeta.gridKey = gKey;
+  }
+  const grid = flowMeta.grid;
+  let needLo = Infinity, needHi = -Infinity;
+  const cover = (v) => { if (v < needLo) needLo = v; if (v > needHi) needHi = v; };
+  for (const k of pts) cover(k.p);
+  if (lockP) cover(lockP);
+  if (S.chartClose && S.chartClose.time >= t0) cover(S.chartClose.price);
+  if (needLo < grid.gLo * grid.step) grid.gLo = Math.floor(needLo / grid.step);
+  if (needHi > grid.gHi * grid.step) grid.gHi = Math.ceil(needHi / grid.step);
+  const lo = grid.gLo * grid.step, hi = grid.gHi * grid.step;
+  const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const x0 = padL, x1 = W - padR;
+  const tx = (sec) => x0 + Math.max(0, Math.min(1, (sec - t0) / (t1 - t0))) * (x1 - x0);
+  ctx.font = "10px sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let gx = x0 + 6; gx < x1; gx += 14) for (let gy = padT + 4; gy < H - padB; gy += 14) { ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = "rgba(42,50,64,.55)";
+  ctx.fillStyle = "#8b96ad";
+  ctx.lineWidth = 1;
+  for (let k = grid.gLo; k <= grid.gHi; k++) {
+    const v = k * grid.step;
+    const yy = y(v);
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
+    { const _lt = fmtPrice(v).replace("$", "");
+      ctx.save();
+      ctx.font = "10px sans-serif";
+      const _lw = ctx.measureText(_lt).width;
+      ctx.fillStyle = "rgba(6,8,12,.55)";
+      ctx.fillRect(x1 - _lw - 10, yy - 7, _lw + 8, 14);
+      ctx.fillStyle = "#8b96ad";
+      ctx.textAlign = "right";
+      ctx.fillText(_lt, x1 - 5, yy);
+      ctx.restore(); }
+  }
+  const tag = (cx, cy, price, caption, color, place) => {
+    ctx.font = "bold 11px sans-serif";
+    const w1 = ctx.measureText(price).width;
+    ctx.font = "9px sans-serif";
+    const w2 = ctx.measureText(caption).width;
+    const tw = Math.max(w1, w2) + 14, th = 30;
+    let bx;
+    if (place === "right") bx = cx + 8;
+    else if (place === "left") bx = cx - tw - 8;
+    else bx = cx - tw / 2;
+    bx = Math.min(Math.max(bx, 2), Math.max(2, W - tw - 2));
+    let by = cy + 10; if (by + th > H - 4) by = cy - th - 10;
+    by = Math.min(Math.max(by, 2), Math.max(2, H - th - 2));
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, 5); else ctx.rect(bx, by, tw, th);
+    ctx.fill();
+    ctx.fillStyle = "#171204";
+    ctx.textAlign = "center";
+    ctx.font = "bold 11px sans-serif";
+    ctx.fillText(price, bx + tw / 2, by + 13);
+    ctx.font = "9px sans-serif";
+    ctx.fillText(caption, bx + tw / 2, by + 25);
+    ctx.font = "10px sans-serif";
+  };
+  const pendingTags = [];
+  // 开始价：金色虚线全幅 + 开始价签（贴在本局起点上，竞品同款）
+  if (lockP && startS && startS >= t0 - 1) {
+    const yy = y(lockP);
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "#d8b45a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
+    ctx.setLineDash([]);
+    pendingTags.push([tx(startS), yy, fmtPrice(lockP).replace("$", ""), t("chart.startPrice"), "#e8e13a", startS <= t0 + WIN * 0.3 ? "right" : "center"]);
+  }
+  // 结算点：结束价虚线 + 结束价签，线继续流过这个点，不停不断
+  if (S.chartClose && S.chartClose.time >= t0 && S.chartClose.time <= nowS + 1) {
+    const yy = y(S.chartClose.price);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = "rgba(238,241,248,.6)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
+    ctx.setLineDash([]);
+    pendingTags.push([tx(S.chartClose.time), yy, fmtPrice(S.chartClose.price).replace("$", ""), t("chart.endPrice"), "#e8e13a", "left"]);
+  }
+  // 线体平滑：中值滤波 + 加权平滑（与本局线同法）
+  const med = pts.map((k, i) => {
+    const a = pts[Math.max(0, i - 1)].p, b = pts[Math.min(pts.length - 1, i + 1)].p;
+    const s3 = [a, k.p, b].sort((x, z) => x - z);
+    return { t: k.t, p: s3[1] };
+  });
+  const sm = med.map((k, i) => {
+    const a = med[Math.max(0, i - 1)], b = med[Math.min(med.length - 1, i + 1)];
+    return { t: k.t, p: (a.p + k.p * 2 + b.p) / 4 };
+  });
+  // 线尾帧级滑动：渲染价按帧指数趋近最新价（τ≈0.30s），x 同步推进到当前时刻
+  let tailP = pts[pts.length - 1].p;
+  {
+    const target = tailP;
+    if (flowMeta.animP == null) flowMeta.animP = target;
+    const dtF = flowMeta.animAt ? Math.min(0.1, (nowMs - flowMeta.animAt) / 1000) : 0.016;
+    flowMeta.animAt = nowMs;
+    flowMeta.animP += (target - flowMeta.animP) * (1 - Math.exp(-dtF / 0.30));
+    tailP = flowMeta.animP;
+    const lastSm = sm[sm.length - 1];
+    if (nowS - lastSm.t > 0.03) sm.push({ t: nowS, p: flowMeta.animP });
+    else { lastSm.t = nowS; lastSm.p = flowMeta.animP; }
+  }
+  // 线体：一色到底的橙色发光线（竞品定版，永不变色）
+  const lineCol = "#ffa02e";
+  const XY = sm.map((k) => [tx(k.t), y(k.p)]);
+  ctx.beginPath();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.moveTo(XY[0][0], XY[0][1]);
+  for (let i = 1; i < XY.length - 1; i++) {
+    const mx = (XY[i][0] + XY[i + 1][0]) / 2, my = (XY[i][1] + XY[i + 1][1]) / 2;
+    ctx.quadraticCurveTo(XY[i][0], XY[i][1], mx, my);
+  }
+  ctx.lineTo(XY[XY.length - 1][0], XY[XY.length - 1][1]);
+  ctx.strokeStyle = lineCol;
+  ctx.lineWidth = 2.6;
+  ctx.shadowColor = lineCol;
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.lineTo(XY[XY.length - 1][0], H - padB);
+  ctx.lineTo(XY[0][0], H - padB);
+  ctx.closePath();
+  const fg = ctx.createLinearGradient(0, padT, 0, H - padB);
+  fg.addColorStop(0, "rgba(255,160,46,.30)");
+  fg.addColorStop(1, "rgba(255,160,46,0)");
+  ctx.fillStyle = fg;
+  ctx.fill();
+  // 本局起点圆点：金点压在线上，一眼看到这局从哪开始
+  if (lockP && startS && startS >= t0 && startS <= nowS) {
+    ctx.beginPath(); ctx.arc(tx(startS), y(lockP), 5, 0, Math.PI * 2); ctx.fillStyle = "#f5c542"; ctx.fill();
+    ctx.beginPath(); ctx.arc(tx(startS), y(lockP), 5, 0, Math.PI * 2); ctx.strokeStyle = "rgba(0,0,0,.45)"; ctx.lineWidth = 1; ctx.stroke();
+  }
+  // 线尾：圆点 + 右侧价签 + 倒计时气泡（橙色；最后 5 秒下注期脉冲提醒）
+  const hx = XY[XY.length - 1][0], hy = XY[XY.length - 1][1];
+  ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fill();
+  ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+  const pv = fmtPrice(tailP).replace("$", "");
+  ctx.font = "bold 10px sans-serif";
+  const pw = ctx.measureText(pv).width + 8;
+  ctx.fillStyle = "#f5c542";
+  const tagX = Math.max(2, Math.min(x1 + 2, W - pw - 2));
+  ctx.fillRect(tagX, hy - 8, pw, 16);
+  ctx.fillStyle = "#171204";
+  ctx.textAlign = "center";
+  ctx.fillText(pv, tagX + pw / 2, hy);
+  if (S.cdSec !== null && S.cdSec !== undefined && S.cdSec >= 0) {
+    const label = S.cdSec + "s";
+    ctx.font = "bold 12px sans-serif";
+    const cdPulse = (S.cdSec <= 5 && S.phase === "betting") ? 1 + 0.13 * Math.max(0, 1 - (performance.now() % 1000) / 500) : 1;
+    const bw = (ctx.measureText(label).width + 18) * cdPulse;
+    const bh = 21 * cdPulse;
+    const bx = Math.max(x0, Math.min(hx - bw / 2, x1 - bw));
+    const by = Math.max(2, hy - 40);
+    const urgentCd = S.cdSec <= 5 && S.phase === "betting";
+    const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
+    if (urgentCd) { grd.addColorStop(0, "#ffedb0"); grd.addColorStop(0.55, "#f5c542"); grd.addColorStop(1, "#d8a028"); }
+    else { grd.addColorStop(0, "#ffb03a"); grd.addColorStop(1, "#f2762e"); }
+    ctx.fillStyle = grd;
+    if (urgentCd) { ctx.shadowColor = "rgba(245,197,66,.85)"; ctx.shadowBlur = 16; }
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 7); else ctx.rect(bx, by, bw, bh);
+    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(hx - 4.5, by + bh); ctx.lineTo(hx + 4.5, by + bh); ctx.lineTo(hx, by + bh + 5.5); ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = urgentCd ? "#171204" : "#fff";
+    ctx.textAlign = "center";
+    ctx.fillText(label, bx + bw / 2, by + bh / 2 + 0.5);
+  }
+  for (const tg of pendingTags) tag(tg[0], tg[1], tg[2], tg[3], tg[4], tg[5]);
+  // 横轴：窗口起止时间 + 开始/结束小标（竞品同款轴标）
+  ctx.fillStyle = "#5d6a86";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "left";
+  const fmtT = (ms) => new Date(ms).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false });
+  ctx.fillText(fmtT(t0 * 1000), x0, H - 8);
+  ctx.textAlign = "right";
+  ctx.fillText(fmtT(nowMs), x1, H - 8);
+  const axisTag = (sec, txt) => {
+    if (sec === null || sec === undefined || sec < t0 || sec > nowS) return;
+    ctx.font = "9px sans-serif";
+    const w = ctx.measureText(txt).width + 8;
+    const bx = Math.min(Math.max(tx(sec) - w / 2, 2), Math.max(2, W - w - 2));
+    ctx.fillStyle = "rgba(16,20,30,.88)";
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, H - 15, w, 13, 3); else ctx.rect(bx, H - 15, w, 13);
+    ctx.fill();
+    ctx.fillStyle = "#f5c542";
+    ctx.textAlign = "center";
+    ctx.fillText(txt, bx + w / 2, H - 8);
+  };
+  axisTag(startS, LANG === "zh" ? "开始" : "Start");
+  if (S.chartClose) axisTag(S.chartClose.time, LANG === "zh" ? "结束" : "End");
+}
 function drawLine() {
   const cv = $("kline");
   if (!cv) return;
@@ -4071,7 +4340,8 @@ function drawLine() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
   S._pendingTags = null; // 本帧的待上屏标签重新攒（F2）
-  // 图表返工：有本局采样缓冲时只画本局线（进行中/冻结），不走下面的旧滚动窗口拼点逻辑
+  // round33：流水线优先——一条连续橙线跨局滚动（竞品定版）；流水点不足时才回退本局线
+  if (flowMeta.assetId === S.assetId && flowPts.length >= 2) { drawFlowLine(ctx, W, H); return; }
   const _buf = displayBuf();
   if (_buf) { drawRoundLine(ctx, W, H, _buf); return; }
   const em = $("chartEmpty");
@@ -4766,6 +5036,7 @@ function bindUI() {
     applyI18n();
   };
   $("bgmBtn").onclick = toggleBgm;
+  { const _bb2 = $("bgmBtn2"); if (_bb2) _bb2.onclick = toggleBgm; }
   $("bgmVol").addEventListener("input", (e) => setBgmVolume(e.target.value / 100));
   $("fxBtn").onclick = toggleFx;
   document.querySelectorAll(".tabs button").forEach((b) => {
