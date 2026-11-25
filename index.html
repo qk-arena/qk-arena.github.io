@@ -1304,7 +1304,7 @@ function intakeTrade(isBuy, price, qty, g) {
   notePrice(price, false, g);
   updatePower();
 }
-let _suspectTick = null;
+let _suspectTick = null, _suspectAt = 0;
 function notePrice(p, _legacyFromSim, g, assetId) {
   // 代际/品类校验（第二轮返工·缺陷 B）：切品类后，旧品类连接里在途的异步回调
   // （轮询 fetch、池子读数）可能迟到落地，旧逻辑照单全收，于是出现「BTC 顶栏
@@ -1319,10 +1319,16 @@ function notePrice(p, _legacyFromSim, g, assetId) {
   // 3 秒轮询间真涨跌常 >0.5%，用 0.5% 会把真价成片扣死（图只剩几个点的真凶之一），给 5%。
   const SUSPECT_PCT = S.assetId === 0 ? 0.05 : 0.005;
   const SUSPECT_CONFIRM = S.assetId === 0 ? 0.01 : 0.001;
-  if (S.price && Math.abs(p - S.price) / S.price > SUSPECT_PCT) {
-    if (_suspectTick && Math.abs(p - _suspectTick) / _suspectTick < SUSPECT_CONFIRM) _suspectTick = null;
-    else { _suspectTick = p; return; }
-  } else _suspectTick = null;
+  // round30：参考价不只看 S.price——切品类后 S.price 被清空，旧逻辑下第一笔
+  // tick 完全不过滤，坏价直接成为现价、再把后续真价当可疑 tick 扣住，图轴整
+  // 局被拉坏（真机录屏实证）。无现价时用本局链上开始价作参考；可疑 tick 的
+  // 确认必须与首笔相隔 ≥1 秒，同一瞬间涌入的两笔同值坏价不能互相确认。
+  const refP = S.price || (typeof chainRound !== "undefined" && chainRound && chainRound.lockPrice ? Number(chainRound.lockPrice) / 1e8 : null);
+  if (refP && Math.abs(p - refP) / refP > SUSPECT_PCT) {
+    const nowT = Date.now();
+    if (_suspectTick && Math.abs(p - _suspectTick) / _suspectTick < SUSPECT_CONFIRM && nowT - (_suspectAt || 0) >= 1000) { _suspectTick = null; _suspectAt = 0; }
+    else { if (!_suspectTick || Math.abs(p - _suspectTick) / _suspectTick >= SUSPECT_CONFIRM) { _suspectTick = p; _suspectAt = nowT; } return; }
+  } else { _suspectTick = null; _suspectAt = 0; }
   if (!S._realSeen) {
     S._realSeen = true;
     // 首笔真价：历史 K 线种子里偏离真价 >0.3% 的点一律清出序列与 K 线
@@ -1947,7 +1953,7 @@ function setAsset(id) {
   roundBuf = null; frozenBuf = null; // 采样缓冲按品类隔离：切品类全部清掉，绝不串图
   S.lockPrice = null; S.closePrice = null; S.chartLock = null; S.chartClose = null; S.chartResult = null;
   S.roundId = null; S.roundAssetId = null; S.roundMode = null; S.pools = { long: 0, short: 0 }; // 第六轮 J1：本局归属与池子同步清掉——新品类局补上之前，本局块只许占位，不许挂旧品类的局号/池子
-  S.price = null; S._realSeen = false; S.ticks = []; S.candles = []; S.trades = [];
+  S.price = null; S._realSeen = false; _suspectTick = null; _suspectAt = 0; S.ticks = []; S.candles = []; S.trades = [];
   S.axis = null; // 旧画线路径的全局轴状态也必须清（不清会把上一品类的量级带进新图，缺陷 A/B）
   if (typeof KLINE !== "undefined") KLINE.dirty = true;
   const lp = $("lockPrice"); if (lp) lp.textContent = "—";
@@ -2049,22 +2055,29 @@ function sampleRoundBuf(p) {
   }
   const pts = roundBuf.pts;
   const last = pts[pts.length - 1];
-  // 逐 tick 采样（丝滑红线）：WS 逐笔流每个 tick 都落点；尾点 120ms 内直接刷新
-  // 价与时刻，线尾巴永远在动，不再是 1 秒一格的台阶。慢源（SI/金银/NVDA）由
-  // 1 秒补点定时器用上一价补点（平线段），保证不断线、一局 ≥30 点。
-  if (last && nowS - last.t < 0.12 && last.t > roundBuf.startTime + 0.5) { last.p = p; last.t = nowS; if (typeof KLINE !== "undefined") KLINE.dirty = true; return; }
+  // round30 绝对锚：偏离本局开始价 >2% 的采样一律丢弃（SI 给 8%）。1 分钟局内
+  // 真价极少偏离开始价 2% 以上，这类点只会是坏 tick；量程永远拉不坏。
+  const ANCHOR_PCT = roundBuf.assetId === 0 ? 0.08 : 0.02;
+  if (roundBuf.lockPrice && Math.abs(p - roundBuf.lockPrice) / roundBuf.lockPrice > ANCHOR_PCT) return;
   // 离群过滤：偏离最近 5 点中位数过大丢弃（阈值按品类：SI 波动大给 3%，其余 0.8%）；
-  // 连续 3 个同向离群视为真实跳变放行
+  // 连续 3 个离群视为真实跳变放行，但计数须彼此相隔 ≥1 秒（round30：旧版同一
+  // 瞬间的三笔坏价就能凑满 3 个放行，过滤形同虚设）
   const OUTLIER_PCT = roundBuf.assetId === 0 ? 0.03 : 0.008;
   if (pts.length >= 4) {
     const recent = pts.slice(-5).map((k) => k.p).sort((a, b) => a - b);
     const med = recent[Math.floor(recent.length / 2)];
     if (med > 0 && Math.abs(p - med) / med > OUTLIER_PCT) {
-      roundBuf.dropRun++;
+      if (roundBuf.dropAt && nowS - roundBuf.dropAt < 1) return;
+      roundBuf.dropAt = nowS;
+      roundBuf.dropRun = (roundBuf.dropRun || 0) + 1;
       if (roundBuf.dropRun < 3) return;
       roundBuf.dropRun = 0;
     } else roundBuf.dropRun = 0;
   }
+  // 逐 tick 采样（丝滑红线）：尾点 120ms 内直接刷新价与时刻，线尾巴永远在动。
+  // round30：刷新移到全部过滤之后——旧版刷新在过滤之前，坏 tick 能绕过过滤
+  // 直接改写尾点。
+  if (last && nowS - last.t < 0.12 && last.t > roundBuf.startTime + 0.5) { last.p = p; last.t = nowS; if (typeof KLINE !== "undefined") KLINE.dirty = true; return; }
   pts.push({ t: nowS, p });
   if (pts.length > 1500) pts.splice(0, pts.length - 1500);
   if (typeof KLINE !== "undefined") KLINE.dirty = true;
@@ -2908,7 +2921,8 @@ async function doBet() {
   } catch (e) {
     console.error(e);
     const msg = (e && e.message) || "";
-    toast(msg.includes("user rejected") || msg.includes("User denied") ? t("toast.cancelled") : t("toast.betFail") + msg.slice(0, 70));
+    const cleanMsg = !/[{}]/.test(msg) && !/coalesce|CALL_EXCEPTION/i.test(msg) && msg.length <= 40;
+    toast(msg.includes("user rejected") || msg.includes("User denied") ? t("toast.cancelled") : t("toast.betFail") + (cleanMsg ? msg : "请重试 · Please retry"));
   } finally {
     updateBetBtn();
   }
@@ -4050,7 +4064,7 @@ function drawLine() {
   if (em) em.classList.add("hide");
   const padR = 6, padL = 6, padT = 18, padB = 30; // 底部 30px：上行放开始/结束旗标，下行放时间
   const winPrices = [];
-  for (const k of pts) if (k.t >= t0) winPrices.push(k.p);
+  for (const k of pts) { if (k.t < t0) continue; if (buf.lockPrice && Math.abs(k.p - buf.lockPrice) / buf.lockPrice > 0.02) continue; winPrices.push(k.p); }
   // 纵轴只看最近 60% 的点：早段的高低点不再把画面压扁，线贴着当前行情走
   if (winPrices.length > 40) winPrices.splice(0, Math.floor(winPrices.length * 0.4));
   let hi = -Infinity, lo = Infinity;
@@ -4182,6 +4196,7 @@ function drawLine() {
   // 帧级线尾缓动（round15 复刻竞品丝滑）：渲染价逐帧向真实价指数趋近
   // （τ≈0.12s，与本局缓冲路径 animP 同参数），线头连续滑动，不按数据到达率跳格。
   if (S._animP == null || !(S._animP > 0)) S._animP = S.price;
+  else if (Math.abs(S.price - S._animP) / S.price > 0.008) S._animP = S.price; // round30：大跳变直接吸附，不留长拖尾
   const _dtF = S._animAt ? Math.min(0.1, (now - S._animAt) / 1000) : 0.016;
   S._animAt = now;
   S._animP += (S.price - S._animP) * (1 - Math.exp(-_dtF / 0.30)); // round16：τ 同步 0.30
