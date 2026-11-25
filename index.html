@@ -1707,32 +1707,48 @@ function startAssetFeeds(id) {
   if (meta.kind === "crypto") {
     SYMBOL = meta.symbol; PAIR_USDT = meta.pairU;
     connectProvider(0); seedKlines(); poll24h();
-    // round27：REST 行情与 WS 并行兜底。用户真机（TP 浏览器 + 国内网络）里 WS
-    // 逐笔流常被吞掉，旧回退链（vision→gate→bitgetws→bitget REST）走完要半分钟
-    // 以上，一整局可能一个价都拿不到：线不长、倒计时气泡也不出（画布靠采样点
-    // 标脏才重绘，没点就整局冻结）。改为进站即每 2 秒拉一次 Bitget 现货 ticker
-    // （失败换 Gate），与 WS 谁先到谁喂价；WS 活着时这些只是同价补点，口径不变。
-    // 只用 assetId 守卫不用 gen：回退换源会自增 gen，按 gen 守卫会把本兜底误杀。
-    const pollRest = async () => {
+    // round28：兜底改走链上喂价（与结算同源）。真机录屏实测：用户的网络能连通
+    // BSC 测试网 RPC（局、余额、结算都正常），但连不上交易所域名——WS 逐笔流和
+    // round27 的 REST 兜底在他手机上一条都没到，线整局冻结、倒计时气泡不出。
+    // keeper 每 30 秒把真实行情推到链上 mock 喂价，前端每 2 秒读一次：走的是
+    // 和读局完全相同的 RPC 通道，价格与结算同源同价，交易所全断也有线。
+    // 链上读不到时才退回交易所 REST（Bitget→Gate）。只用 assetId 守卫不用 gen：
+    // 回退换源会自增 gen，按 gen 守卫会把本兜底误杀。
+    let feedAddr28 = null;
+    const pollFallback = async () => {
       try {
-        const r = await fetch("https://api.bitget.com/api/v2/spot/market/tickers?symbol=" + meta.symbol, { signal: AbortSignal.timeout(4000) });
-        const j = await r.json();
-        const d = j && j.data && j.data[0];
-        const pr = d && parseFloat(d.lastPr);
-        if (pr > 0) { notePrice(pr, false, undefined, id); return; }
-        throw new Error("bitget-bad");
+        if (!feedAddr28) feedAddr28 = await resolveAssetFeed(id);
+        if (feedAddr28) {
+          const rp = await getReadProvider();
+          if (rp) {
+            const fc = new ethers.Contract(feedAddr28, FEED_ABI, rp);
+            const d = await fc.latestRoundData();
+            const pr = Number(d[1]) / 1e8;
+            if (pr > 0) { notePrice(pr, false, undefined, id); return; }
+          }
+        }
+        throw new Error("chain-feed-bad");
       } catch (e) {
         try {
-          const r2 = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=" + meta.pairU, { signal: AbortSignal.timeout(4000) });
-          const j2 = await r2.json();
-          const d2 = Array.isArray(j2) ? j2[0] : null;
-          const pr2 = d2 && parseFloat(d2.last);
-          if (pr2 > 0) notePrice(pr2, false, undefined, id);
-        } catch (e2) {}
+          const r = await fetch("https://api.bitget.com/api/v2/spot/market/tickers?symbol=" + meta.symbol, { signal: AbortSignal.timeout(4000) });
+          const j = await r.json();
+          const d = j && j.data && j.data[0];
+          const pr = d && parseFloat(d.lastPr);
+          if (pr > 0) { notePrice(pr, false, undefined, id); return; }
+          throw new Error("bitget-bad");
+        } catch (e2) {
+          try {
+            const r2 = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=" + meta.pairU, { signal: AbortSignal.timeout(4000) });
+            const j2 = await r2.json();
+            const d2 = Array.isArray(j2) ? j2[0] : null;
+            const pr2 = d2 && parseFloat(d2.last);
+            if (pr2 > 0) notePrice(pr2, false, undefined, id);
+          } catch (e3) {}
+        }
       }
     };
-    pollRest();
-    assetPollTimer = setInterval(pollRest, 2000);
+    pollFallback();
+    assetPollTimer = setInterval(pollFallback, 2000);
   } else if (meta.kind === "si") {
     // SI 无图模式：不再种历史 K 线（图表已取消）；链上直读轮询保留，只喂价格面板与顶栏。
     // 显示源改链上直读（实测 60 秒 13 个新价点，DexScreener 同窗只有 1 个）：
