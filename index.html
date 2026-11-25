@@ -1184,16 +1184,24 @@ function stopFeeds() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
 }
-function intakeTrade(isBuy, price, qty) {
+let lastTickAt = 0; // 最近一笔真实 tick 时刻（缺陷 C 数据看门狗用）
+function intakeTrade(isBuy, price, qty, g) {
+  if (g !== undefined && g !== gen) return; // 旧连接/旧品类的迟到 tick 一律丢弃（缺陷 B）
   const now = Date.now();
   const usd = price * qty;
   S.trades.push({ t: now, isBuy, usd });
   while (S.trades.length && S.trades[0].t < now - 60000) S.trades.shift();
-  notePrice(price);
+  notePrice(price, false, g);
   updatePower();
 }
 let _suspectTick = null;
-function notePrice(p, fromSim) {
+function notePrice(p, fromSim, g, assetId) {
+  // 代际/品类校验（第二轮返工·缺陷 B）：切品类后，旧品类连接里在途的异步回调
+  // （轮询 fetch、池子读数）可能迟到落地，旧逻辑照单全收，于是出现「BTC 顶栏
+  // 顶着 SI 的价」。带 g/assetId 的调用先验明正身，对不上直接丢弃。
+  if (g !== undefined && g !== gen) return;
+  if (assetId !== undefined && assetId !== S.assetId) return;
+  if (!fromSim) lastTickAt = Date.now();
   // 模拟价只配更新顶部数字，绝不写进价格序列——历史上模拟段（61000 起步的随机游走）
   // 混进真实 K 线种子，就是那根"会走路的尖峰"的真身。真价一到序列里只有真价。
   if (fromSim) {
@@ -1268,6 +1276,17 @@ function failover(fromIdx) {
 function connectProvider(idx) {
   const name = PROVIDERS[idx];
   const g = ++gen;
+  // 数据看门狗（第二轮返工·缺陷 C）：旧逻辑只查 WS 能不能连上（readyState），
+  // 连得上却不出数据（被中间网络吞流）时永远不回退，页面停在假活源上、价格
+  // 靠别的慢路径几秒一跳。改为：连接建立后 7 秒无真实 tick 就强制换下一源。
+  if (name !== "bitget") {
+    const connAt = Date.now();
+    lastTickAt = connAt;
+    const wd = setInterval(() => {
+      if (g !== gen) { clearInterval(wd); return; }
+      if (Date.now() - connAt > 7000 && Date.now() - lastTickAt > 7000) { clearInterval(wd); failover(idx); }
+    }, 1000);
+  }
   if (name === "relay") {
     if (!CONFIG.RELAY_URL) return connectProvider(idx + 1);
     setSource(t("src.relay"), false, "src.relay");
@@ -1276,8 +1295,8 @@ function connectProvider(idx) {
     ws.onmessage = (ev) => {
       try {
         const j = JSON.parse(ev.data);
-        if (j.e === "trade" || j.p) intakeTrade(j.b !== undefined ? !!j.b : j.m === false, parseFloat(j.p), parseFloat(j.q || 0));
-        else if (j.price) notePrice(parseFloat(j.price));
+        if (j.e === "trade" || j.p) intakeTrade(j.b !== undefined ? !!j.b : j.m === false, parseFloat(j.p), parseFloat(j.q || 0), g);
+        else if (j.price) notePrice(parseFloat(j.price), false, g);
       } catch (e) {}
     };
     ws.onerror = () => { if (g === gen) failover(idx); };
@@ -1302,7 +1321,7 @@ function connectProvider(idx) {
       try {
         const j = JSON.parse(ev.data);
         if (j.data && j.arg && j.arg.channel === "trade") {
-          for (const d of j.data) intakeTrade(d.side === "buy", parseFloat(d.price), parseFloat(d.size || 0));
+          for (const d of j.data) intakeTrade(d.side === "buy", parseFloat(d.price), parseFloat(d.size || 0), g);
         }
       } catch (e) {}
     };
@@ -1318,7 +1337,7 @@ function connectProvider(idx) {
     catch (e) { return failover(idx); }
     ws.onopen = () => { if (g === gen) setSource("Binance Vision", true); };
     ws.onmessage = (ev) => {
-      try { const j = JSON.parse(ev.data); if (j.p) intakeTrade(j.m === false, parseFloat(j.p), parseFloat(j.q || 0)); } catch (e) {}
+      try { const j = JSON.parse(ev.data); if (j.p) intakeTrade(j.m === false, parseFloat(j.p), parseFloat(j.q || 0), g); } catch (e) {}
     };
     ws.onerror = () => { if (g === gen) failover(idx); };
     ws.onclose = () => { if (g === gen) failover(idx); };
@@ -1332,7 +1351,7 @@ function connectProvider(idx) {
         .then((r) => r.json())
         .then((j) => {
           const d = j && j.data && j.data[0];
-          if (d && d.lastPr) { if (g === gen) setSource("Bitget", true); notePrice(parseFloat(d.lastPr)); }
+          if (d && d.lastPr) { if (g === gen) setSource("Bitget", true); notePrice(parseFloat(d.lastPr), false, g); }
         })
         .catch(() => { if (g === gen) failover(idx); });
     };
@@ -1354,7 +1373,7 @@ function connectProvider(idx) {
         const j = JSON.parse(ev.data);
         if (j.event === "update" && j.result) {
           const r = j.result;
-          intakeTrade(r.side === "buy", parseFloat(r.price), parseFloat(r.amount));
+          intakeTrade(r.side === "buy", parseFloat(r.price), parseFloat(r.amount), g);
         }
       } catch (e) {}
     };
@@ -1514,6 +1533,22 @@ function startAssetFeeds(id) {
     // 每 1.5 秒读两个池 reserves，与 keeper 结算完全同源同公式；连续失败 3 次回退 DexScreener。
     const g = gen;
     let fails = 0, bnbUsd = 0, cycle = 0;
+    // 量级护栏状态（第二轮返工·缺陷 A）：lastGood = 最近接受的 SI 价；
+    // suspect/suspectN = 被拦下的候选新价位及其连续命中次数（真跳变确认带）。
+    let lastGood = 0, suspect = 0, suspectN = 0;
+    const acceptSi = (pr, srcLabel) => {
+      if (!(pr > 0) || g !== gen) return;
+      if (lastGood && Math.abs(pr / lastGood - 1) > 0.15) {
+        // 偏离上一个已接受价 >15%：三个换算分量任一读错（池子 reserves、
+        // decimals、BNB 价）都会先在这里被拦下，绝不让中间量量级的假价
+        // 进顶栏、采样缓冲与纵轴。真跳变会在同一新价位连续命中 3 次后放行。
+        if (suspect && Math.abs(pr / suspect - 1) <= 0.02) { suspectN++; } else { suspect = pr; suspectN = 1; }
+        if (suspectN < 3) return;
+      }
+      suspect = 0; suspectN = 0; lastGood = pr;
+      setSource(srcLabel, true);
+      notePrice(pr, false, g, 0);
+    };
     const pollBnb = async () => {
       try {
         const r = await fetch("https://data-api.binance.vision/api/v3/ticker/price?symbol=BNBUSDT", { signal: AbortSignal.timeout(4000) });
@@ -1522,7 +1557,20 @@ function startAssetFeeds(id) {
         if (p > 0) bnbUsd = p;
       } catch (e) {}
     };
-    pollBnb();
+    // 切入立刻有线（缺陷 A）：先用测试网 mock 的最新 answer 垫第一笔——那正是
+    // keeper 按同一公式推上去的 SI 价，与结算同源；链上直读的实时价随后覆盖。
+    // 旧逻辑要等 pollBnb 回来 + 第一轮双池读数才有第一笔价，切入后十几秒空白。
+    (async () => {
+      try {
+        const fa = await resolveAssetFeed(0);
+        if (!fa || g !== gen) return;
+        const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+        const fc = new ethers.Contract(fa, FEED_ABI, rp);
+        const d = await fc.latestRoundData();
+        const pr = Number(d[1]) / 1e8;
+        if (pr > 0 && g === gen && !lastGood) { lastGood = pr; setSource("PancakeSwap 主池 · 链上直读", true); notePrice(pr, false, g, 0); }
+      } catch (e) {}
+    })();
     const poll = async () => {
       if (g !== gen) return;
       cycle++;
@@ -1531,9 +1579,10 @@ function startAssetFeeds(id) {
         if (!_siMainProvider) _siMainProvider = new ethers.JsonRpcProvider(BSC_MAINNET_RPC);
         const siInSpcxb = await poolHumanPrice(_siMainProvider, SI_POOL, SI_TOKEN_ADDR);
         const spcxbInBnb = await poolHumanPrice(_siMainProvider, SPCXB_POOL, SPCXB_TOKEN_ADDR);
+        if (g !== gen) return; // 读池期间已切品类：本轮结果作废（缺陷 B）
         if (bnbUsd > 0) {
           const pr = siInSpcxb * spcxbInBnb * bnbUsd;
-          if (pr > 0) { fails = 0; setSource("PancakeSwap 主池 · 链上直读", true); notePrice(pr); }
+          if (pr > 0) { fails = 0; acceptSi(pr, "PancakeSwap 主池 · 链上直读"); }
         }
       } catch (e) {
         fails++;
@@ -1542,12 +1591,13 @@ function startAssetFeeds(id) {
             const r = await fetch("https://api.dexscreener.com/latest/dex/pairs/bsc/" + SI_POOL, { signal: AbortSignal.timeout(4000) });
             const j = await r.json();
             const pr = j && j.pairs && j.pairs[0] && parseFloat(j.pairs[0].priceUsd);
-            if (pr > 0) { setSource("DexScreener · PancakeSwap 主池", true); notePrice(pr); }
+            if (pr > 0) acceptSi(pr, "DexScreener · PancakeSwap 主池");
           } catch (e2) {}
         }
       }
     };
-    poll(); assetPollTimer = setInterval(poll, 1500);
+    // 首轮先把 BNB/USD 等回来再读池：旧逻辑 pollBnb 异步未归时第一轮必然空转。
+    (async () => { await pollBnb(); if (g !== gen) return; poll(); assetPollTimer = setInterval(poll, 1500); })();
   } else if (meta.kind === "metal") {
     // Gate 合约逐笔 WS（实测 XAU 约 108 tick/分钟、XAG 约 120 tick/分钟）；
     // 8 秒无 tick 或断线则回退 goldprice.org 轮询。显示与 keeper 结算同为 Gate 合约价口径。
@@ -1563,7 +1613,7 @@ function startAssetFeeds(id) {
           const j = await r.json();
           const it = j && j.items && j.items[0];
           const pr = it && parseFloat(it[meta.metal]);
-          if (pr > 0) { setSource("GoldPrice.org 现货金银", true); notePrice(pr); }
+          if (pr > 0 && g === gen) { setSource("GoldPrice.org 现货金银", true); notePrice(pr, false, g, id); }
         } catch (e) {}
       };
       poll(); assetPollTimer = setInterval(poll, 3000);
@@ -1579,7 +1629,7 @@ function startAssetFeeds(id) {
             const arr = Array.isArray(j.result) ? j.result : [j.result];
             for (const tr of arr) {
               const pr = parseFloat(tr.price);
-              if (pr > 0) { gotTick = true; setSource("Gate 合约 · 逐笔", true); notePrice(pr); }
+              if (pr > 0) { gotTick = true; setSource("Gate 合约 · 逐笔", true); notePrice(pr, false, g, id); }
             }
           }
         } catch (e) {}
@@ -1591,6 +1641,7 @@ function startAssetFeeds(id) {
   } else if (meta.kind === "nvda") {
     // 显示主源：Nasdaq 官方报价 2 秒轮询（Binance 期货 NVDA 永续 WS 实测被地区拦截，不可用）；
     // 直连失败（CORS/限流）回退读链上 mock（keeper 同源 Nasdaq 推价，30 秒一推）。
+    const g = gen;
     const pollMock = async () => {
       try {
         const feedAddr = await resolveAssetFeed(6);
@@ -1599,7 +1650,7 @@ function startAssetFeeds(id) {
         const fc = new ethers.Contract(feedAddr, FEED_ABI, rp);
         const d = await fc.latestRoundData();
         const pr = Number(d[1]) / 1e8;
-        if (pr > 0) { setSource("NVDA 采样价（与结算同源）", true); notePrice(pr); }
+        if (pr > 0 && g === gen) { setSource("NVDA 采样价（与结算同源）", true); notePrice(pr, false, g, 6); }
       } catch (e) {}
     };
     const poll = async () => {
@@ -1608,7 +1659,7 @@ function startAssetFeeds(id) {
         const j = await r.json();
         const raw = j && j.data && j.data.primaryData && j.data.primaryData.lastSalePrice;
         const pr = Number(String(raw || "").replace(/[$,]/g, ""));
-        if (pr > 0) { setSource("Nasdaq 官方报价", true); notePrice(pr); return; }
+        if (pr > 0 && g === gen) { setSource("Nasdaq 官方报价", true); notePrice(pr, false, g, 6); return; }
         throw new Error("nasdaq-bad");
       } catch (e) { pollMock(); }
     };
@@ -1623,8 +1674,16 @@ function setAsset(id) {
   roundBuf = null; frozenBuf = null; // 采样缓冲按品类隔离：切品类全部清掉，绝不串图
   S.lockPrice = null; S.closePrice = null; S.chartLock = null; S.chartClose = null; S.chartResult = null;
   S.price = null; S._realSeen = false; S.ticks = []; S.candles = []; S.trades = [];
+  S.axis = null; // 旧画线路径的全局轴状态也必须清（不清会把上一品类的量级带进新图，缺陷 A/B）
+  stopSim(); // 上一品类的模拟价定时器不许跨品类继续写顶栏
   if (typeof KLINE !== "undefined") KLINE.dirty = true;
   const lp = $("lockPrice"); if (lp) lp.textContent = "—";
+  // 顶栏价格立即回加载态（缺陷 B）：新品类第一 tick 到达前只显示「—」，
+  // 绝不拿上一品类的价格顶着新品类的名字显示。
+  const _pel = $("price"); if (_pel) _pel.textContent = "—";
+  const _cp2 = $("curPrice2"); if (_cp2) _cp2.textContent = "—";
+  const _chn = $("chgNow"); if (_chn) _chn.textContent = "";
+  const _c24 = $("chg24"); if (_c24) _c24.textContent = "—";
   startAssetFeeds(id);
   if (S.contract) discoverRound();
   tickRound();
@@ -1684,6 +1743,7 @@ function newRoundBuf(r) {
     startTime: r.startTime, lockTime: r.lockTime,
     lockPrice: (r.lockPrice && Number(r.lockPrice) > 0) ? Number(r.lockPrice) / 1e8 : null,
     closePrice: null, pts: [], axisHi: null, axisLo: null, dropRun: 0,
+    animP: null, animAt: 0, // 帧级线尾动画状态（缺陷 C）
   };
 }
 function sampleRoundBuf(p) {
@@ -1726,11 +1786,26 @@ function sampleRoundBuf(p) {
   if (pts.length > 1500) pts.splice(0, pts.length - 1500);
   if (typeof KLINE !== "undefined") KLINE.dirty = true;
 }
+/* 链上局一发现到就先把缓冲建好（第二轮返工·缺陷 A）：开始价锚点立刻能画，
+   不必等第一笔采样 tick——旧逻辑缓冲只在 sampleRoundBuf 里懒创建，没 tick
+   就没缓冲、图上就是十几秒「等待行情」。 */
+function ensureRoundBuf() {
+  if (!chainRound || chainRound.assetId !== S.assetId || chainRound.mode !== modeNum()) return;
+  if (!roundBuf || roundBuf.key !== bufKey(chainRound.assetId, chainRound.id)) {
+    if (roundBuf && roundBuf.pts.length >= 2 && roundBuf.assetId === S.assetId) frozenBuf = roundBuf;
+    roundBuf = newRoundBuf(chainRound);
+  }
+  // 同一局后续刷新到链上开始价时同步进缓冲（画线函数会自己补左端锚点）
+  if (roundBuf && chainRound.lockPrice && Number(chainRound.lockPrice) > 0) {
+    const lp = Number(chainRound.lockPrice) / 1e8;
+    if (roundBuf.lockPrice !== lp) roundBuf.lockPrice = lp;
+  }
+}
 /* 当前该画哪个缓冲：本局进行中画本局；本局刚结束、下一局未开始画刚冻结的本局；
    本局还没攒出线（刚开局）画本局锚点；都没有才回退 frozenBuf。 */
 function displayBuf() {
   const nowS = Date.now() / 1000;
-  if (roundBuf && roundBuf.pts.length >= 1) {
+  if (roundBuf && (roundBuf.pts.length >= 1 || roundBuf.lockPrice)) {
     if (chainRound && roundBuf.key === bufKey(chainRound.assetId, chainRound.id)) return roundBuf;
     if (roundBuf.assetId === S.assetId) return roundBuf; // 已结束的本局冻结线（下一局未开始）
     return null;
@@ -1777,9 +1852,9 @@ async function discoverRound() {
     if (r.token.toLowerCase() !== TOKEN.address.toLowerCase()) continue;
     // Keeper 会提前创建下一局（status 也是 OPEN）：未来局不能下注，跳过往回找已开始的局
     if (r.startTime > nowSec) { if (!futureRound) futureRound = r; continue; }
-    chainRound = r; nextChainRound = futureRound; return r;
+    chainRound = r; nextChainRound = futureRound; ensureRoundBuf(); return r;
   }
-  if (futureRound) { chainRound = futureRound; nextChainRound = null; return futureRound; }
+  if (futureRound) { chainRound = futureRound; nextChainRound = null; ensureRoundBuf(); return futureRound; }
   try {
     const bn = await S.provider.getBlockNumber();
     const evts = await S.contract.queryFilter(S.contract.filters.RoundCreated(null, mn, TOKEN.address), Math.max(0, bn - 2400), bn);
@@ -1787,7 +1862,7 @@ async function discoverRound() {
       const rid = Number(evts[evts.length - 1].args.roundId);
       const rd = await S.contract.getRound(rid);
       const nr = normRound(rd);
-      if (nr.assetId === S.assetId) { chainRound = nr; return chainRound; }
+      if (nr.assetId === S.assetId) { chainRound = nr; ensureRoundBuf(); return chainRound; }
       return chainRound;
     }
   } catch (e) {}
@@ -3251,7 +3326,14 @@ function drawRoundLine(ctx, W, H, buf) {
   if (live && S.price) vals.push(S.price);
   if (buf.lockPrice) vals.push(buf.lockPrice);
   if (buf.closePrice) vals.push(buf.closePrice);
-  const srt = vals.slice().sort((a, b) => a - b);
+  // 量级护栏（第二轮返工·缺陷 A）：先按中位数把关——偏离中位数 3 倍以上的量
+  // （换算中间量/坏 tick/串台价）一律不许进纵轴。旧逻辑只在 ≥10 点时做分位
+  // 裁剪，点数少时单个坏点就能把轴拉到几千、真线压成底部平直横线。
+  const srtAll = vals.slice().sort((a, b) => a - b);
+  const medV0 = srtAll.length ? srtAll[Math.floor(srtAll.length / 2)] : 0;
+  const inBand = (v) => !(medV0 > 0) || (v >= medV0 / 3 && v <= medV0 * 3);
+  const banded = vals.filter(inBand);
+  const srt = (banded.length ? banded : vals).slice().sort((a, b) => a - b);
   let vLo, vHi;
   if (srt.length >= 10) {
     vLo = srt[Math.floor(srt.length * 0.05)];
@@ -3267,7 +3349,7 @@ function drawRoundLine(ctx, W, H, buf) {
     buf.axisLo = tLo < buf.axisLo ? tLo : buf.axisLo + (tLo - buf.axisLo) * 0.12;
   }
   let hi = buf.axisHi, lo = buf.axisLo;
-  for (const k of pts) { if (k.p > hi) hi = k.p + padV * 0.2; if (k.p < lo) lo = k.p - padV * 0.2; }
+  for (const k of pts) { if (!inBand(k.p)) continue; if (k.p > hi) hi = k.p + padV * 0.2; if (k.p < lo) lo = k.p - padV * 0.2; }
   buf.axisHi = hi; buf.axisLo = lo;
   if (!(hi > lo)) { hi = lo + Math.abs(midV) * 0.001 + 1e-9; }
   const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
@@ -3294,8 +3376,11 @@ function drawRoundLine(ctx, W, H, buf) {
     ctx.font = "9px sans-serif";
     const w2 = ctx.measureText(caption).width;
     const tw = Math.max(w1, w2) + 14, th = 30;
-    const bx = Math.min(Math.max(cx - tw / 2, x0), x1 - tw);
-    let by = cy + 10; if (by + th > H - padB) by = cy - th - 10; if (by < padT) by = padT;
+    // 防截断（第二轮返工·缺陷 E）：气泡必须整只落在画布内——旧钳制以绘图区
+    // 右界 x1 为界，宽标签（如 58,832.63）在左端/右端会被推出画布或被轴区
+    // 挤掉一位数字。改为以整块画布为界回收，宁可压住一点图线也不许缺字。
+    const bx = Math.min(Math.max(cx - tw / 2, 2), Math.max(2, W - tw - 2));
+    let by = cy + 10; if (by + th > H - 4) by = cy - th - 10; if (by < 2) by = 2;
     ctx.fillStyle = color;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, 5); else ctx.rect(bx, by, tw, th);
@@ -3308,25 +3393,29 @@ function drawRoundLine(ctx, W, H, buf) {
     ctx.fillText(caption, bx + tw / 2, by + 25);
     ctx.font = "10px sans-serif";
   };
-  // 开始价：金色虚线 + 左端标签
-  if (buf.lockPrice) {
+  // 开始价/结束价标签先攒着，线体与线尾画完后最后统一上屏（缺陷 E）：
+  // 旧顺序里标签先画、发光线后画，线穿过标签时会把数字笔画抹掉一截
+  // （实测 58,832.63 被抹成 51,832.63）。虚线本体仍在原位先画。
+  const pendingTags = [];
+  // 开始价：金色虚线 + 左端标签（价格出了量级护栏带就不画，防坏锚点污染画面）
+  if (buf.lockPrice && inBand(buf.lockPrice)) {
     const yy = y(buf.lockPrice);
     ctx.setLineDash([6, 4]);
     ctx.strokeStyle = "#d8b45a";
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
     ctx.setLineDash([]);
-    tag(tx(buf.startTime), yy, fmtPrice(buf.lockPrice).replace("$", ""), t("chart.startPrice"), "#e8e13a");
+    pendingTags.push([tx(buf.startTime), yy, fmtPrice(buf.lockPrice).replace("$", ""), t("chart.startPrice"), "#e8e13a"]);
   }
   // 结束价（冻结线）：虚线 + 右端标签
-  if (buf.closePrice) {
+  if (buf.closePrice && inBand(buf.closePrice)) {
     const yy = y(buf.closePrice);
     ctx.setLineDash([3, 3]);
     ctx.strokeStyle = "rgba(238,241,248,.6)";
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
     ctx.setLineDash([]);
-    tag(tx(buf.lockTime), yy, fmtPrice(buf.closePrice).replace("$", ""), t("chart.endPrice"), "#e8e13a");
+    pendingTags.push([tx(buf.lockTime), yy, fmtPrice(buf.closePrice).replace("$", ""), t("chart.endPrice"), "#e8e13a"]);
   }
   // 线体：中值滤波 + 加权平滑（与竞品同款平滑发光线）
   const med = pts.map((k, i) => {
@@ -3338,6 +3427,23 @@ function drawRoundLine(ctx, W, H, buf) {
     const a = med[Math.max(0, i - 1)], b = med[Math.min(med.length - 1, i + 1)];
     return { t: k.t, p: (a.p + k.p * 2 + b.p) / 4 };
   });
+  // 帧级线尾（第二轮返工·缺陷 C）：进行中的线尾不再原地等下一个 tick——
+  // 渲染价按帧向最新采样价指数趋近（时间常数约 0.12 秒），x 同步推进到当前
+  // 时刻。这样即便某个源几秒才来一笔新价，两帧快照之间线尾也在连续滑动，
+  // 不再攒几秒后垂直跳一截。历史点位一律不动，只动线尾这一个渲染点。
+  let tailP = pts[pts.length - 1].p;
+  if (live && !ended && sm.length) {
+    const target = sm[sm.length - 1].p;
+    if (buf.animP == null) buf.animP = target;
+    const dtF = buf.animAt ? Math.min(0.1, (nowMs - buf.animAt) / 1000) : 0.016;
+    buf.animAt = nowMs;
+    buf.animP += (target - buf.animP) * (1 - Math.exp(-dtF / 0.12));
+    tailP = buf.animP;
+    const nowSec = nowMs / 1000;
+    const lastSm = sm[sm.length - 1];
+    if (nowSec - lastSm.t > 0.03) sm.push({ t: nowSec, p: buf.animP });
+    else { lastSm.t = nowSec; lastSm.p = buf.animP; }
+  }
   const lockedCol = ended || !live || S.phase === "locked";
   const lineCol = lockedCol ? "#d7f75b" : "#ffa02e";
   const XY = sm.map((k) => [tx(k.t), y(k.p)]);
@@ -3367,7 +3473,7 @@ function drawRoundLine(ctx, W, H, buf) {
   ctx.fill();
   // 线尾：圆点 + 右轴价签 + 秒数气泡（气泡秒数 = S.cdSec，已按本局口径钳制）
   const hx = XY[XY.length - 1][0], hy = XY[XY.length - 1][1];
-  const lastP = pts[pts.length - 1].p;
+  const lastP = tailP;
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fill();
   ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
   const pv = fmtPrice(lastP).replace("$", "");
@@ -3399,6 +3505,8 @@ function drawRoundLine(ctx, W, H, buf) {
     ctx.textAlign = "center";
     ctx.fillText(label, bx + bw / 2, by + bh / 2 + 0.5);
   }
+  // 开始价/结束价标签最后上屏（缺陷 E）：压在线体与线尾之上，数字不被抹
+  for (const tg of pendingTags) tag(tg[0], tg[1], tg[2], tg[3], tg[4]);
   // 横轴时间：本局起止
   ctx.fillStyle = "#5d6a86";
   ctx.font = "10px sans-serif";
@@ -3527,8 +3635,8 @@ function drawLine() {
       ctx.font = "9px sans-serif";
       const w2 = ctx.measureText(caption).width;
       const tw2 = Math.max(w1, w2) + 14, th = 30;
-      const bx = Math.min(Math.max(cx - tw2 / 2, x0), x1 - tw2);
-      let by = cy + 10; if (by + th > H - padB) by = cy - th - 10; if (by < padT) by = padT;
+      const bx = Math.min(Math.max(cx - tw2 / 2, 2), Math.max(2, W - tw2 - 2)); // 同缺陷 E：整只气泡必须落在画布内
+      let by = cy + 10; if (by + th > H - 4) by = cy - th - 10; if (by < 2) by = 2;
       ctx.fillStyle = "#e8e13a";
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(bx, by, tw2, th, 5); else ctx.rect(bx, by, tw2, th);
@@ -3979,7 +4087,11 @@ function init() {
   // 逐 tick 丝滑重绘（验收红线）：采样点一变就标脏，rAF 按动画帧重绘线图，
   // 线的动势与 tick 同步，不再 500ms 一跳；K 线模式保留 500ms 节奏。
   (function rafLoop() {
-    if (S.chartType === "line" && KLINE.dirty) { drawKline(); KLINE.dirty = false; }
+    // 进行中的本局线每帧重绘（缺陷 C 线尾动画的前提）：只在有进行中缓冲时
+    // 才逐帧，其余时候仍走脏标记，避免无谓重绘。
+    const _db = S.chartType === "line" ? displayBuf() : null;
+    const _liveBuf = !!(_db && chainRound && _db.key === bufKey(chainRound.assetId, chainRound.id) && Date.now() < _db.lockTime * 1000);
+    if (S.chartType === "line" && (KLINE.dirty || _liveBuf)) { drawKline(); KLINE.dirty = false; }
     requestAnimationFrame(rafLoop);
   })();
   setInterval(() => { if (S.chartType !== "line" && KLINE.dirty) { drawKline(); KLINE.dirty = false; } }, 500);
