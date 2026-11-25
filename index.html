@@ -312,6 +312,34 @@ input{font-family:inherit}
 .road-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;min-height:14px}
 .road-grid .rdot{width:14px;height:14px}
 .road-empty{color:var(--muted);font-size:12px}
+/* 单段制结果条（2026-11-25）：干净利落，不遮图、无角色跳出；淡入上滑 + 数字滚动 */
+/* 品类栏 + 大倒计时（2026-11-25）：倒计时必须一屏可见——旧倒计时被 #betPanel .countdown{display:none} 藏死，
+   这次把大倒计时独立放在图表上方，品类栏在其上方。 */
+.asset-bar{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+.asset-bar::-webkit-scrollbar{display:none}
+.asset-chip{flex:0 0 auto;padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:#c6cede;font-size:13px;font-weight:700;cursor:pointer}
+.asset-chip.on{background:linear-gradient(135deg,#f5c542,#d8a028);color:#171204;border-color:#f5c542}
+.big-cd{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#131a2c,#0d1220);border:1px solid rgba(216,180,90,.45);border-radius:12px;padding:8px 14px;margin-bottom:10px;position:relative;overflow:hidden}
+.big-cd-label{font-size:12px;color:#aeb8cc;white-space:nowrap}
+.big-cd-time{font-size:34px;font-weight:900;line-height:1;color:#f5c542;font-variant-numeric:tabular-nums;min-width:92px}
+.big-cd-state{font-size:13px;font-weight:800;color:#7ee2a8;white-space:nowrap}
+.big-cd.urgent .big-cd-time{color:#ffb02e}
+.big-cd.urgent .big-cd-state{color:#ffb02e}
+.big-cd-next{margin-left:auto;font-size:11px;color:#8fa0bd;text-align:right;white-space:nowrap}
+.big-cd-bar{position:absolute;left:0;bottom:0;height:3px;background:rgba(245,197,66,.85);width:100%;transition:width 1s linear}
+.mkt-closed{display:none;background:rgba(246,70,93,.12);border:1px solid rgba(246,70,93,.5);color:#ff8fa5;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;margin-bottom:10px}
+.mkt-closed.show{display:block}
+.result-bar{position:fixed;left:12px;right:12px;bottom:86px;z-index:120;display:flex;align-items:center;gap:12px;background:rgba(15,19,30,.97);border:1px solid rgba(216,180,90,.55);border-radius:12px;padding:10px 14px;color:#eef1f8;opacity:0;transform:translateY(14px);pointer-events:none;transition:opacity .35s ease,transform .35s ease;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.result-bar.show{opacity:1;transform:translateY(0)}
+.result-bar .rb-dir{font-weight:800;font-size:16px;white-space:nowrap}
+.result-bar.win .rb-dir{color:#2fbf71}.result-bar.lose .rb-dir{color:#ff8fa5}.result-bar.draw .rb-dir{color:#e9cf8f}
+.result-bar .rb-prices{flex:1;font-size:12px;color:#aeb8cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.result-bar .rb-amt{font-weight:800;font-size:16px;white-space:nowrap}
+.result-bar .rb-amt.pos{color:#2fbf71}.result-bar .rb-amt.neg{color:#ff8fa5}.result-bar .rb-amt.flat{color:#e9cf8f}
+.cd321{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:5}
+.cd321.show{display:flex}
+.cd321-num{font-size:64px;font-weight:900;line-height:1;color:#f5c542;text-shadow:0 0 24px rgba(245,197,66,.55),0 2px 0 rgba(0,0,0,.35)}
+.cd321-sub{margin-top:6px;font-size:13px;letter-spacing:4px;color:#e9cf8f}
 .result-banner{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;pointer-events:none;opacity:0;transition:opacity .25s;background:radial-gradient(circle at 50% 45%,rgba(30,203,110,.3),transparent 65%)}
 .rb-ring{width:118px;height:118px;border-radius:50%;border:3px solid rgba(240,212,138,.95);box-shadow:0 0 44px rgba(240,212,138,.55),inset 0 0 30px rgba(240,212,138,.35);animation:rbPulse .8s ease-in-out infinite alternate}
 @keyframes rbPulse{from{transform:scale(.92);opacity:.7}to{transform:scale(1.06);opacity:1}}
@@ -485,7 +513,7 @@ html{scrollbar-gutter:stable}
       </div>
     </div>
     <div class="price-box">
-      <div class="price"><span id="price">—</span> <small>BTC/USDT</small></div>
+      <div class="price"><span id="price">—</span> <small id="pairLabel">SI/USDT</small></div>
       <div><span class="chg" id="chg24">—</span>
         <span class="src-badge"><span class="src-dot" id="srcDot"></span><span id="srcName">行情连接中…</span></span>
       </div>
@@ -514,14 +542,34 @@ html{scrollbar-gutter:stable}
     <div class="stat"><div class="stat-v" id="statPoolOld">—</div><div class="stat-k" data-i18n="stats.pool">累计派奖</div></div>
   </section>
 
+  <!-- ===== 品类切换（SI 第一，默认 SI） ===== -->
+  <div class="asset-bar" id="assetBar">
+    <button class="asset-chip on" data-asset="0">SI</button>
+    <button class="asset-chip" data-asset="1">比特币</button>
+    <button class="asset-chip" data-asset="2">以太坊</button>
+    <button class="asset-chip" data-asset="3">BNB</button>
+    <button class="asset-chip" data-asset="4">黄金</button>
+    <button class="asset-chip" data-asset="5">白银</button>
+    <button class="asset-chip" data-asset="6">英伟达</button>
+  </div>
+  <!-- ===== 大倒计时（图表上方，一屏可见） ===== -->
+  <div class="big-cd" id="bigCd">
+    <span class="big-cd-label" data-i18n="cd.remain">本局剩余</span>
+    <span class="big-cd-time" id="bigCdTime">--:--</span>
+    <span class="big-cd-state" id="bigCdState"></span>
+    <span class="big-cd-next" id="bigCdNext"></span>
+    <i class="big-cd-bar" id="bigCdBar"></i>
+  </div>
+  <div class="mkt-closed" id="mktClosed"></div>
+
   <!-- ===== K 线图 ===== -->
   <section class="chart-card" id="chartCard">
     <div class="chart-head" style="display:none"><h2 data-i18n="chart.title">📈 BTC/USDT · 1 分钟 K 线</h2>
       <span class="chart-toggle"><button id="ctLine" class="ct-btn" data-i18n="chart.line">分时</button><button id="ctCandle" class="ct-btn" data-i18n="chart.candles">K线</button></span>
       <span class="round-id" id="roundId">第 — 局</span>
       <span class="chart-legend"><span class="lg-up">■ <span data-i18n="chart.up">涨</span></span> <span class="lg-down">■ <span data-i18n="chart.down">跌</span></span> <span id="chartSrc">—</span></span></div>
-    <div class="lock-price" style="display:none"><span data-i18n="price.lock">锁定价</span> <b id="lockPrice">—</b>　·　<span data-i18n="price.cur">当前价</span> <b id="curPrice2">—</b>　·　<span data-i18n="price.chg">涨跌</span> <b id="chgNow">—</b></div>
-    <div class="chart-wrap"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div></div>
+    <div class="lock-price" style="display:none"><span data-i18n="price.lock">开始价</span> <b id="lockPrice">—</b>　·　<span data-i18n="price.cur">当前价</span> <b id="curPrice2">—</b>　·　<span data-i18n="price.chg">涨跌</span> <b id="chgNow">—</b></div>
+    <div class="chart-wrap"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div></div>
   </section>
 
   <!-- ===== 路引 ===== -->
@@ -707,7 +755,7 @@ html{scrollbar-gutter:stable}
 /* ---------------- 配置（部署时只改这里） ---------------- */
 const CONFIG = {
   RELAY_URL: "",            // Cloudflare Worker 中继 wss 地址，如 "wss://relay.example.workers.dev/ws"；未部署留空 ""，自动走备用链路
-  CONTRACT_ADDRESS: "0x72C7d18c0aC4718ec04c79e7E4f6dE74560D1d4e",    // BSC 测试网 DuoKongBattle（2026-11-24 部署）
+  CONTRACT_ADDRESS: "0x4f863E3b148f5466f3D344f1A539bB87a08f7b19",    // BSC 测试网 DuoKongBattle（2026-11-25 品类版：单段制 + 7 品类）
   CHAIN_ID: 97,            // 默认 BSC 测试网；主网改为 56
   CHAIN_NAME: "BSC 测试网",
   CHAIN_RPC: "https://data-seed-prebsc-1-s1.binance.org:8545",
@@ -718,7 +766,7 @@ const CONFIG = {
   MAX_BET: 5000000,        // 单注上限 $SI
   ROUND_CAP: 5000000,      // 单局总池上限 $SI（初期）
   SI_USD: 0.0002054,       // $SI 参考价（仅用于展示约值，待行情接入后替换）
-  LAUNCH_MODES: ["CLASSIC", "SPEED", "MID"], // 上线开局配置：默认只开 5 分钟经典局；后期开 1 分钟极速局（ENABLE_SPEED）时改成 ["CLASSIC", "SPEED"]
+  LAUNCH_MODES: ["SPEED", "MID", "CLASSIC"], // 开局配置：默认 1 分钟极速场（2026-11-25 定版）
 };
 
 /* 多币种预留：代币做成配置对象，v1 只启用 $SI
@@ -806,22 +854,26 @@ const BATTLE_ABI = [
   "function withdraw(address token, uint256 amount)",
   "function lockRound(uint256 roundId)",
   "function settleRound(uint256 roundId)",
-  "function createRound(uint8 mode, address token) returns (uint256 roundId)",
+  "function createRound(uint8 mode, uint8 assetId) returns (uint256 roundId)",
   "function nextRoundId() view returns (uint256)",
-  "function getRound(uint256 roundId) view returns (tuple(uint256 id, uint8 mode, address token, uint256 startTime, uint256 lockTime, uint256 closeTime, int256 lockPrice, int256 closePrice, uint256 longPool, uint256 shortPool, uint8 status, uint8 outcome))",
+  "function getRound(uint256 roundId) view returns (tuple(uint256 id, uint8 mode, address token, uint256 startTime, uint256 lockTime, uint256 closeTime, int256 lockPrice, int256 closePrice, uint256 longPool, uint256 shortPool, uint8 status, uint8 outcome, uint8 assetId))",
   "function getUserBet(uint256 roundId, address user) view returns (uint256 longAmount, uint256 shortAmount)",
   "function getOdds(uint256 roundId) view returns (uint256 longPool, uint256 shortPool, uint256 longPayoutPerUnit, uint256 shortPayoutPerUnit)",
   "function pendingBalance(address user, address token) view returns (uint256)",
   "function getTokenConfig(address token) view returns (tuple(address token, uint8 decimals, uint256 minBet, uint256 maxBet, uint256 roundCap, bool enabled))",
   "function deposit(address token, uint256 amount)",
-  "function latestRoundId(uint8 mode, address token) view returns (uint256)",
+  "function latestRoundId(uint8 mode, uint8 assetId) view returns (uint256)",
+  "function assetFeeds(uint8 assetId) view returns (address)",
   "event BetPlaced(uint256 indexed roundId, address indexed user, bool indexed isLong, address token, uint256 amount)",
-  "event RoundCreated(uint256 indexed roundId, uint8 indexed mode, address indexed token, uint256 startTime, uint256 lockTime, uint256 closeTime)",
+  "event RoundCreated(uint256 indexed roundId, uint8 indexed mode, address indexed token, uint256 startTime, uint256 lockTime, uint256 closeTime, uint8 assetId)",
   "event RoundLocked(uint256 indexed roundId, int256 lockPrice)",
   "event RoundSettled(uint256 indexed roundId, uint8 outcome, int256 lockPrice, int256 closePrice, uint256 totalPool, uint256 fee)",
   "event FeeDistributed(uint256 indexed roundId, address indexed token, uint256 burnAmount, uint256 referralAmount, uint256 treasuryAmount)",
   "event ReferrerBound(address indexed user, address indexed referrer)",
   "event Withdrawn(address indexed user, address indexed token, uint256 amount)",
+];
+const FEED_ABI = [
+  "function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)",
 ];
 const ERC20_ABI = [
   "function balanceOf(address) view returns (uint256)",
@@ -833,7 +885,7 @@ const ERC20_ABI = [
 /* ---------------- 工具 ---------------- */
 const $ = (id) => document.getElementById(id);
 const fmt = (n, d = 0) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
-const fmtPrice = (p) => p ? "$" + Number(p).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+const fmtPrice = (p) => { if (!p) return "—"; const v = Number(p); const d = v < 0.01 ? 6 : v < 1 ? 4 : 2; return "$" + v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }); };
 const fmtUsd = (v) => v >= 1e6 ? "$" + (v / 1e6).toFixed(2) + "M" : v >= 1e3 ? "$" + (v / 1e3).toFixed(1) + "K" : "$" + v.toFixed(0);
 const mmss = (s) => { s = Math.max(0, Math.ceil(s)); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); };
 let toastTimer = null;
@@ -854,7 +906,7 @@ zh: {
 "mode.speedShort":"1 分钟极速","mode.classicShort":"5 分钟经典","cd.lockSettle":"锁定 / 结算",
 "battle.title":"⚔️ 多空对决 <span>· 实时战力</span>","army.long":"多 军","army.short":"空 军",
 "army.longSub":"看涨 · 买盘","army.shortSub":"看跌 · 卖盘","power.long":"多军战力","power.short":"空军战力",
-"price.lock":"锁定价","price.cur":"当前价","price.chg":"涨跌",
+"price.lock":"开始价","price.cur":"当前价","price.chg":"涨跌",
 "bet.title":"🎯 下注面板","bet.long":"看涨","bet.short":"看跌","bet.odds":"赔率","bet.times":"倍",
 "bet.amount":"下注金额（$SI）","bet.min":"最低","bet.max":"单注上限",
 "calc.pool":"本局奖池（多 + 空）","calc.fee":"平台费 5%（2% 销毁 · 2% 返佣 · 1% 运营）","calc.win":"若获胜，预计到手","calc.profit":"预计净收益",
@@ -886,17 +938,17 @@ zh: {
 "about.text":"多空对决，$SI 链上下注：1 分钟极速局与 5 分钟经典局，赢家分输家池，每局抽 5%（2% 销毁、2% 邀请返佣、1% 运营），纯链上结算。","about.textClassic":"多空对决，$SI 链上下注：5 分钟经典局，赢家分输家池，每局抽 5%（2% 销毁、2% 邀请返佣、1% 运营），纯链上结算。",
 "modal.title":"连接钱包","modal.desc":"请选择你要使用的钱包。仅支持 BSC 链（测试网 chainId 97，部署后可切主网 56）。本站绝不会索要私钥、助记词或密码。","modal.cancel":"取消",
 "footer.text":"乾坤战场 QIANKUN ARENA · $SI 链上下注 v1<br>行情：币安优先 · Bitget 备用 · Gate 兜底 · 结算锚：Chainlink BTC/USD（链上）",
-"chart.title":"📈 BTC/USDT · 1 分钟 K 线","chart.titleLine":"📈 BTC/USDT · 分时","chart.line":"分时","chart.candles":"K线","chart.startPrice":"开始价格","chart.endPrice":"结束价格","road.title":"🎲 路引","road.longWin":"涨胜","road.shortWin":"跌胜","road.draw":"平","road.empty":"暂无已结算局","stats.rounds":"已结算局数","stats.hdrRounds":"已结算局数","stats.pool":"累计派奖","state.betting":"开始预测","state.waiting":"结果生成中","state.settling":"结算中","nav.home":"对决","nav.play":"玩法","nav.fight":"马上战斗","win.settling":"即将进行结算","win.paying":"奖励结算中…","mode.midShort":"3 分钟","nav.wallet":"钱包","nav.records":"记录","nav.invite":"邀请","mode.title":"选择玩法","mode.current":"当前","mode.close":"关闭","mode.rules":"选方向 → 到点锁价 → 结算比开始价高低定胜负，赢家分输家奖池（平台费 5%）。平局退本金。","win.long":"看涨获胜","win.short":"看跌获胜","win.draw":"平局 · 退回本金","chart.up":"涨","chart.down":"跌","chart.waiting":"等待行情…",
-"chart.win":"赢","chart.lose":"输","chart.draw":"平局","chart.lockPrice":"锁定价","chart.closePrice":"收盘价",
-"phase.betting":"下注进行中","phase.locked":"已锁定 · 等待结算",
-"cd.cutoff":"下注截止","cd.locked":"下注已截止","cd.lockSoon":"锁定前 15 秒停止下注，请尽快确认",
-"cd.lockedSub":"本局已锁定，锁定价 {price}","cd.lockAt":"锁定价 @{time}","cd.settling":"结算中…",
+"chart.title":"📈 BTC/USDT · 1 分钟 K 线","chart.titleLine":"📈 BTC/USDT · 分时","chart.line":"分时","chart.candles":"K线","chart.startPrice":"开始价格","chart.endPrice":"结束价格","road.title":"🎲 路引","road.longWin":"涨胜","road.shortWin":"跌胜","road.draw":"平","road.empty":"暂无已结算局","stats.rounds":"已结算局数","stats.hdrRounds":"已结算局数","stats.pool":"累计派奖","state.betting":"开始预测","state.waiting":"结果生成中","state.settling":"结算中","nav.home":"对决","nav.play":"玩法","nav.fight":"马上战斗","win.settling":"即将进行结算","win.paying":"奖励结算中…","mode.midShort":"3 分钟","nav.wallet":"钱包","nav.records":"记录","nav.invite":"邀请","mode.title":"选择玩法","mode.current":"当前","mode.close":"关闭","mode.rules":"选方向 → 开局采开始价 → 结束价比开始价高低定胜负，赢家分输家奖池（平台费 5%）。平局退本金。","win.long":"看涨获胜","win.short":"看跌获胜","win.draw":"平局 · 退回本金","chart.up":"涨","chart.down":"跌","chart.waiting":"等待行情…",
+"chart.win":"赢","chart.lose":"输","chart.draw":"平局","chart.lockPrice":"开始价","chart.closePrice":"结束价",
+"phase.betting":"下注进行中","phase.locked":"结果生成中",
+"cd.cutoff":"下注截止","cd.locked":"下注已截止","cd.lockSoon":"结束前 15 秒停止下注，请尽快确认",
+"cd.lockedSub":"结果生成中 · 开始价 {price}","cd.lockAt":"本局结束 @{time}","cd.settling":"结算中…","cd.remain":"本局剩余","cd.nextRound":"下一局 {time} 开始 · {sec} 秒后","cd.nextCreating":"下一局创建中…","mkt.closedNvda":"NVDA 休市中（跟随美股时段）· 距下次开盘 {t}",
 "power.longDom":"🔴 多军压制","power.shortDom":"🔵 空军压制","power.even":"势均力敌",
 "err.connect":"请先连接钱包","err.notDeployed":"合约尚未部署，下注暂不可用（待填 CONTRACT_ADDRESS）",
 "err.closed":"本局下注已截止，请等下一局","err.amount":"请输入下注金额",
 "err.min":"最低下注 {min} $SI（约 ${usd}）","err.max":"单注上限 {max} $SI","err.int":"金额须为整数 $SI",
 "err.cap":"本局奖池已达上限 {cap} $SI","err.noBalance":"产品内余额不足，请先充值（充值按钮已高亮）","err.noWalletBal":"钱包里 $SI 不足，请先在钱包中备好 $SI",
-"bet.locked":"⏳ 本局已锁定 · 等下一局","bet.connectFirst":"🔗 连接钱包后下注","bet.notDeployed":"🛠️ 合约待部署 · 下注暂不可用",
+"bet.locked":"⏳ 结果生成中 · 等结果","bet.connectFirst":"🔗 连接钱包后下注","bet.notDeployed":"🛠️ 合约待部署 · 下注暂不可用",
 "bet.longBtn":"↗ 看涨下单 · {amt} $SI","bet.shortBtn":"↘ 看跌下单 · {amt} $SI",
 "bet.processing":"⏳ 交易处理中…","bet.confirm":"下注成功",
 "src.connecting":"行情连接中…","src.retry":"行情重连中…","src.relay":"币安 · 中继","src.demo":"演示价","rec.demo":" · 本机演示记录","wallet.connectedHtml":"已连接 <b>{addr}</b> · {wallet} · {chain}","err.unknown":"未知错误","wallet.readFail":"读取失败","wallet.noContract":"合约未部署","wallet.tokenNotConfigured":"测试网代币未配置","fx.on":"✨ 特效","fx.off":"✨ 特效关","toast.connected":"钱包已连接","toast.betOk":"下注成功 · 交易已上链","toast.betSent":"下注交易已发送，等待上链…",
@@ -930,7 +982,7 @@ en: {
 "mode.speedShort":"1-min Speed","mode.classicShort":"5-min Classic","cd.lockSettle":"Lock / Settle",
 "battle.title":"⚔️ Long vs Short <span>· Live Power</span>","army.long":"LONG","army.short":"SHORT",
 "army.longSub":"Bullish · Buys","army.shortSub":"Bearish · Sells","power.long":"Long Power","power.short":"Short Power",
-"price.lock":"Lock","price.cur":"Now","price.chg":"Change",
+"price.lock":"Start","price.cur":"Now","price.chg":"Change",
 "bet.title":"🎯 Bet Panel","bet.long":"Up","bet.short":"Down","bet.odds":"Odds","bet.times":"x",
 "bet.amount":"Bet Amount ($SI)","bet.min":"Min","bet.max":"Max per bet",
 "calc.pool":"Round Pool (Long + Short)","calc.fee":"Fee 5% (2% burn · 2% referral · 1% ops)","calc.win":"If you win, you get","calc.profit":"Est. Net Profit",
@@ -962,17 +1014,17 @@ en: {
 "about.text":"Long vs Short, bet with $SI on-chain: 1-min Speed and 5-min Classic rounds, winners split the losers' pool, 5% fee per round (2% burn, 2% referral, 1% ops), fully on-chain settlement.","about.textClassic":"Long vs Short, bet with $SI on-chain: 5-min Classic rounds, winners split the losers' pool, 5% fee per round (2% burn, 2% referral, 1% ops), fully on-chain settlement.",
 "modal.title":"Connect Wallet","modal.desc":"Pick a wallet. BSC only (testnet chainId 97; mainnet 56 after launch). We will never ask for your private key, seed phrase or password.","modal.cancel":"Cancel",
 "footer.text":"QIANKUN ARENA · $SI On-Chain Prediction v1<br>Price: Binance first · Bitget backup · Gate fallback · Settlement anchor: Chainlink BTC/USD (on-chain)",
-"chart.title":"📈 BTC/USDT · 1m Candles","chart.titleLine":"📈 BTC/USDT · Live Line","chart.line":"Line","chart.candles":"Candles","chart.startPrice":"Start Price","chart.endPrice":"End Price","road.title":"🎲 Road","road.longWin":"Long won","road.shortWin":"Short won","road.draw":"Draw","road.empty":"No settled rounds yet","stats.rounds":"Rounds Settled","stats.pool":"Total Paid Out","state.betting":"Betting Open","state.waiting":"Result Pending","state.settling":"Settling","nav.home":"Duel","nav.play":"Modes","nav.fight":"Battle Now","win.settling":"Settling Soon","win.paying":"Paying rewards…","mode.midShort":"3-Min","nav.wallet":"Wallet","nav.records":"Records","nav.invite":"Invite","mode.title":"Choose Mode","mode.current":"Current","mode.close":"Close","mode.rules":"Pick a side → price locks → settle vs the start price. Winners split the losers pool (5% fee). Ties refund.","win.long":"LONG WINS","win.short":"SHORT WINS","win.draw":"Draw · Refunded","chart.up":"Up","chart.down":"Down","chart.waiting":"Waiting for price feed…",
-"chart.win":"WIN","chart.lose":"LOSE","chart.draw":"DRAW","chart.lockPrice":"LOCK","chart.closePrice":"CLOSE",
-"phase.betting":"Betting Open","phase.locked":"Locked · Settling",
-"cd.cutoff":"Betting Closes In","cd.locked":"Betting Closed","cd.lockSoon":"Betting stops 15s before lock — confirm soon",
-"cd.lockedSub":"Locked at {price}","cd.lockAt":"Lock @ {time}","cd.settling":"Settling…",
+"chart.title":"📈 BTC/USDT · 1m Candles","chart.titleLine":"📈 BTC/USDT · Live Line","chart.line":"Line","chart.candles":"Candles","chart.startPrice":"Start Price","chart.endPrice":"End Price","road.title":"🎲 Road","road.longWin":"Long won","road.shortWin":"Short won","road.draw":"Draw","road.empty":"No settled rounds yet","stats.rounds":"Rounds Settled","stats.pool":"Total Paid Out","state.betting":"Betting Open","state.waiting":"Result Pending","state.settling":"Settling","nav.home":"Duel","nav.play":"Modes","nav.fight":"Battle Now","win.settling":"Settling Soon","win.paying":"Paying rewards…","mode.midShort":"3-Min","nav.wallet":"Wallet","nav.records":"Records","nav.invite":"Invite","mode.title":"Choose Mode","mode.current":"Current","mode.close":"Close","mode.rules":"Pick a side → start price sampled at open → end price vs start price decides. Winners split the losers pool (5% fee). Ties refund.","win.long":"LONG WINS","win.short":"SHORT WINS","win.draw":"Draw · Refunded","chart.up":"Up","chart.down":"Down","chart.waiting":"Waiting for price feed…",
+"chart.win":"WIN","chart.lose":"LOSE","chart.draw":"DRAW","chart.lockPrice":"START","chart.closePrice":"END",
+"phase.betting":"Betting Open","phase.locked":"Result Pending",
+"cd.cutoff":"Betting Closes In","cd.locked":"Betting Closed","cd.lockSoon":"Betting stops 15s before the end — confirm soon",
+"cd.lockedSub":"Result pending · Start {price}","cd.lockAt":"Ends @ {time}","cd.settling":"Settling…","cd.remain":"Round ends in","cd.nextRound":"Next round {time} · in {sec}s","cd.nextCreating":"Next round being created…","mkt.closedNvda":"NVDA market closed (US hours) · next open in {t}",
 "power.longDom":"🔴 Longs dominating","power.shortDom":"🔵 Shorts dominating","power.even":"Evenly matched",
 "err.connect":"Connect your wallet first","err.notDeployed":"Contract not deployed yet — betting is paused (CONTRACT_ADDRESS pending)",
 "err.closed":"Betting closed for this round — wait for the next one","err.amount":"Enter a bet amount",
 "err.min":"Min bet {min} $SI (~${usd})","err.max":"Max per bet {max} $SI","err.int":"Amount must be whole $SI",
 "err.cap":"Round pool cap reached: {cap} $SI","err.noBalance":"In-arena balance too low — deposit first (deposit button highlighted)","err.noWalletBal":"Not enough $SI in your wallet — top up your wallet first",
-"bet.locked":"⏳ Locked · Next round soon","bet.connectFirst":"🔗 Connect wallet to bet","bet.notDeployed":"🛠️ Contract pending · Betting unavailable",
+"bet.locked":"⏳ Result pending · Hang tight","bet.connectFirst":"🔗 Connect wallet to bet","bet.notDeployed":"🛠️ Contract pending · Betting unavailable",
 "bet.longBtn":"↗ Up · Bet {amt} $SI","bet.shortBtn":"↘ Down · Bet {amt} $SI",
 "bet.processing":"⏳ Processing tx…","bet.confirm":"Bet confirmed!",
 "src.connecting":"Connecting…","src.retry":"Reconnecting…","src.relay":"Binance · Relay","src.demo":"Demo price","rec.demo":" · Local demo record","wallet.connectedHtml":"Connected <b>{addr}</b> · {wallet} · {chain}","err.unknown":"Unknown error","wallet.readFail":"Failed to load","wallet.noContract":"No contract","wallet.tokenNotConfigured":"Testnet token not configured","fx.on":"✨ Effects","fx.off":"✨ Effects Off","toast.connected":"Wallet connected","toast.betOk":"Bet confirmed on-chain","toast.betSent":"Bet tx sent, waiting for confirmation…",
@@ -1021,7 +1073,8 @@ function applyI18n() {
 
 /* ---------------- 状态 ---------------- */
 const S = {
-  mode: defaultMode(),        // 上线开局配置决定（默认 classic）
+  mode: defaultMode(),        // 上线开局配置决定（默认 speed，2026-11-25 定版）
+  assetId: 0,                 // 品类：0=SI（默认）1=BTC 2=ETH 3=BNB 4=XAU 5=XAG 6=NVDA
   price: null, open24: null, chg24: null,
   source: null, sourceLabel: "", srcKey: "src.connecting",
   trades: [],                 // {t, isBuy, usd}
@@ -1050,18 +1103,20 @@ function saveInvite() { localStorage.setItem("dk_invite_v1", JSON.stringify(S.in
 /* ---------------- 行情引擎：Bitget 优先 → Gate → Binance Vision ----------------
    顺序：Worker 中继（RELAY_URL 已配时）→ Gate.io WS → Bitget WS → Binance Vision WS → Bitget 轮询
    任一源失败即自动切下一源；全部失败先跑本地模拟价兜底，同时继续重试真源。 */
-const SYMBOL = "BTCUSDT";
+let SYMBOL = "BTCUSDT";
+let PAIR_USDT = "BTC_USDT";
 const PROVIDERS = ["relay", "gate", "bitgetws", "vision", "bitget"];
 let gen = 0, ws = null, pollTimer = null, retryTimer = null;
 // 本地模拟价兜底：没连上真源时先跑模拟价（BTC 61000 附近小幅波动，每秒一跳），
 // 价格与 K 线立刻有数；真行情一到马上停模拟换真价，徽标明确标“演示价”。
 let simTimer = null, simPrice = 61000;
+const SIM_BASE = { 0: 0.000136, 1: 61000, 2: 2900, 3: 880, 4: 2650, 5: 31, 6: 180 };
 function startSim() {
   setSource(t("src.demo"), false, "src.demo");
   if (simTimer) return;
   S.sim = true;
-  simPrice = S.price && S.price > 1000 ? S.price : 61000;
-  const tick = () => { simPrice = Math.max(1000, simPrice * (1 + (Math.random() - 0.5) * 0.001)); notePrice(simPrice, true); };
+  simPrice = S.price || SIM_BASE[S.assetId] || 61000;
+  const tick = () => { const np = simPrice * (1 + (Math.random() - 0.5) * 0.001); if (np > 0) simPrice = np; notePrice(simPrice, true); };
   tick();
   simTimer = setInterval(tick, 1000);
 }
@@ -1242,7 +1297,7 @@ function connectProvider(idx) {
     ws.onopen = () => {
       if (g !== gen) return;
       setSource("Gate.io", true);
-      ws.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "spot.trades", event: "subscribe", payload: ["BTC_USDT"] }));
+      ws.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "spot.trades", event: "subscribe", payload: [PAIR_USDT] }));
     };
     ws.onmessage = (ev) => {
       try {
@@ -1293,8 +1348,9 @@ function renderChg24(c) {
   return true;
 }
 async function poll24h() {
+  if (typeof ASSETS_META !== "undefined" && ASSETS_META[S.assetId] && ASSETS_META[S.assetId].kind !== "crypto") return;
   try {
-    const r = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=BTC_USDT", { signal: AbortSignal.timeout(5000) });
+    const r = await fetch("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=" + PAIR_USDT, { signal: AbortSignal.timeout(5000) });
     if (renderChg24(parseGateChg24(await r.json()))) return;
   } catch (e) {}
   try {
@@ -1302,6 +1358,156 @@ async function poll24h() {
     if (renderChg24(parseBitgetChg24(await r.json()))) return;
   } catch (e) {}
   // 两源都失败：静默保留上次值（初始为横线），不弹错
+}
+
+/* ---------------- 品类行情引擎（2026-11-25） ----------------
+   0=SI：图表历史走 GeckoTerminal 该池 OHLCV，实时价走 DexScreener 对子价（仅展示；
+        结算价由 keeper 直读主网池子 reserves 推测试网 mock，与展示源无关）。
+   1/2/3=BTC/ETH/BNB：复用既有引擎（Gate WS 优先链），只换交易对。
+   4/5=XAU/XAG：Gate 无现货对，用 GoldPrice.org 公开现货金银价轮询（仅展示）。
+   6=NVDA：用 keeper 推到测试网 mock 的同一采样价（stooq → mock）经 RPC 读回展示，
+        与结算同源；休市时段显示休市条 + 距开盘倒计时（keeper 同步不建局）。 */
+const ASSETS_META = [
+  { id: 0, sym: "SI", pair: "SI/USDT", kind: "si" },
+  { id: 1, sym: "BTC", pair: "BTC/USDT", kind: "crypto", symbol: "BTCUSDT", pairU: "BTC_USDT" },
+  { id: 2, sym: "ETH", pair: "ETH/USDT", kind: "crypto", symbol: "ETHUSDT", pairU: "ETH_USDT" },
+  { id: 3, sym: "BNB", pair: "BNB/USDT", kind: "crypto", symbol: "BNBUSDT", pairU: "BNB_USDT" },
+  { id: 4, sym: "XAU", pair: "XAU/USD", kind: "metal", metal: "xauPrice" },
+  { id: 5, sym: "XAG", pair: "XAG/USD", kind: "metal", metal: "xagPrice" },
+  { id: 6, sym: "NVDA", pair: "NVDA/USD", kind: "nvda" },
+];
+const SI_POOL = "0xDE6a7B01b73e3daF74249B437ec3b479304de67F"; // PancakeSwap v2 SI/SPCXB 主池（DexScreener 一次性选定，流动性最高）
+let assetPollTimer = null;
+const _feedCache = {};
+let _readContract = null;
+function stopAssetPolls() { if (assetPollTimer) { clearInterval(assetPollTimer); assetPollTimer = null; } }
+async function resolveAssetFeed(assetId) {
+  if (_feedCache[assetId]) return _feedCache[assetId];
+  try {
+    if (!_readContract) {
+      const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+      _readContract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, BATTLE_ABI, rp);
+    }
+    const a = await _readContract.assetFeeds(assetId);
+    if (a && a !== ethers.ZeroAddress) { _feedCache[assetId] = a; return a; }
+  } catch (e) {}
+  return null;
+}
+function usMarketOpenFE(atMs) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(atMs || Date.now()));
+  const g = (ty) => (parts.find((x) => x.type === ty) || {}).value;
+  const wd = g("weekday");
+  if (wd === "Sat" || wd === "Sun") return false;
+  const mins = Number(g("hour")) * 60 + Number(g("minute"));
+  return mins >= 570 && mins < 960;
+}
+function nextUsOpenMs(fromMs) {
+  let t0 = Math.floor((fromMs || Date.now()) / 60000) * 60000 + 60000;
+  for (let i = 0; i < 4 * 24 * 60; i++, t0 += 60000) {
+    if (usMarketOpenFE(t0) && !usMarketOpenFE(t0 - 60000)) return t0;
+  }
+  return t0;
+}
+async function seedSiKlines() {
+  try {
+    const r = await fetch("https://api.geckoterminal.com/api/v2/networks/bsc/pools/" + SI_POOL + "/ohlcv/minute?aggregate=1&limit=180", { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return;
+    const j = await r.json();
+    const list = j && j.data && j.data.attributes && j.data.attributes.ohlcv_list;
+    if (!Array.isArray(list) || list.length < 10) return;
+    const rows = list.map((c) => ({ t: c[0] * 1000, o: +c[1], h: +c[2], l: +c[3], c: +c[4], n: 1 })).filter((c) => c.o > 0 && c.c > 0).sort((a, b) => a.t - b.t);
+    if (S.assetId !== 0) return;
+    S.candles = rows.slice(-KLINE.max);
+    if (S.ticks.length < 30) S.ticks = rows.map((c) => ({ t: c.t + 59000, p: c.c }));
+    KLINE.dirty = true;
+    if (typeof rebuildLineTicks === "function") rebuildLineTicks();
+    drawKline();
+  } catch (e) { /* 拿不到历史 K 线：靠实时价自采样成线 */ }
+}
+function startAssetFeeds(id) {
+  stopFeeds(); stopAssetPolls();
+  const meta = ASSETS_META[id];
+  const pl = $("pairLabel"); if (pl) pl.textContent = meta.pair;
+  if (meta.kind === "crypto") {
+    SYMBOL = meta.symbol; PAIR_USDT = meta.pairU;
+    connectProvider(0); seedKlines(); poll24h();
+  } else if (meta.kind === "si") {
+    seedSiKlines();
+    const poll = async () => {
+      try {
+        const r = await fetch("https://api.dexscreener.com/latest/dex/pairs/bsc/" + SI_POOL, { signal: AbortSignal.timeout(5000) });
+        const j = await r.json();
+        const pr = j && j.pairs && j.pairs[0] && parseFloat(j.pairs[0].priceUsd);
+        if (pr > 0) { setSource("DexScreener · PancakeSwap 主池", true); notePrice(pr); }
+      } catch (e) {}
+    };
+    poll(); assetPollTimer = setInterval(poll, 3000);
+  } else if (meta.kind === "metal") {
+    const poll = async () => {
+      try {
+        const r = await fetch("https://data-asg.goldprice.org/dbXRates/USD", { signal: AbortSignal.timeout(5000) });
+        const j = await r.json();
+        const it = j && j.items && j.items[0];
+        const pr = it && parseFloat(it[meta.metal]);
+        if (pr > 0) { setSource("GoldPrice.org 现货金银", true); notePrice(pr); }
+      } catch (e) {}
+    };
+    poll(); assetPollTimer = setInterval(poll, 5000);
+  } else if (meta.kind === "nvda") {
+    const poll = async () => {
+      try {
+        const feedAddr = await resolveAssetFeed(6);
+        if (!feedAddr) return;
+        const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+        const fc = new ethers.Contract(feedAddr, FEED_ABI, rp);
+        const d = await fc.latestRoundData();
+        const pr = Number(d[1]) / 1e8;
+        if (pr > 0) { setSource("NVDA 采样价（与结算同源）", true); notePrice(pr); }
+      } catch (e) {}
+    };
+    poll(); assetPollTimer = setInterval(poll, 5000);
+  }
+}
+function setAsset(id) {
+  if (S.assetId === id) return;
+  S.assetId = id;
+  document.querySelectorAll(".asset-chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.asset) === id));
+  chainRound = null; nextChainRound = null; lastChainId = null; lastRoundId = null; lastPhase = null;
+  S.lockPrice = null; S.closePrice = null; S.chartLock = null; S.chartClose = null; S.chartResult = null;
+  S.price = null; S._realSeen = false; S.ticks = []; S.candles = []; S.trades = [];
+  if (typeof KLINE !== "undefined") KLINE.dirty = true;
+  const lp = $("lockPrice"); if (lp) lp.textContent = "—";
+  startAssetFeeds(id);
+  if (S.contract) discoverRound();
+  tickRound();
+}
+
+/* ---------------- 大倒计时（图表上方常驻） ---------------- */
+function fmtCd(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+function fmtClock(ts) { const d = new Date(ts * 1000); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function updateBigCd(remain, total, phase, nextText) {
+  const box = $("bigCd"); if (!box) return;
+  $("bigCdTime").textContent = fmtCd(remain);
+  $("bigCdState").textContent = remain <= 0 ? t("cd.settling") : phase === "locked" ? t("phase.locked") : t("phase.betting");
+  box.classList.toggle("urgent", remain <= 15 && remain > 0);
+  const bar = $("bigCdBar"); if (bar) bar.style.width = (total > 0 ? Math.max(0, Math.min(100, (remain / total) * 100)) : 0) + "%";
+  $("bigCdNext").textContent = nextText || "";
+}
+function showNvdaClosed() {
+  const el = $("mktClosed");
+  const leftSec = Math.max(0, Math.floor((nextUsOpenMs(Date.now()) - Date.now()) / 1000));
+  if (el) { el.classList.add("show"); el.textContent = "NVDA " + t("mkt.closedNvda", { t: fmtCd(leftSec) }); }
+  const box = $("bigCd");
+  if (box) {
+    $("bigCdTime").textContent = fmtCd(leftSec);
+    $("bigCdState").textContent = "休市中";
+    $("bigCdNext").textContent = "";
+    box.classList.remove("urgent");
+  }
+  const bb = $("betBtn"); if (bb) { bb.disabled = true; bb.textContent = "休市中"; }
+}
+function hideNvdaClosed() {
+  const el = $("mktClosed"); if (el) el.classList.remove("show");
 }
 
 /* ---------------- 回合引擎 ----------------
@@ -1312,6 +1518,7 @@ async function poll24h() {
 function roundDuration() { return S.mode === "speed" ? 60 : S.mode === "mid" ? 180 : 300; }
 function modeNum() { return S.mode === "speed" ? 0 : S.mode === "mid" ? 2 : 1; }
 let chainRound = null, lastChainId = null, lastRoundId = null, lastPhase = null;
+let nextChainRound = null; // 下一局（keeper 已预创建），用于提前亮出「X 秒后开始」
 function normRound(rd) {
   return {
     id: Number(rd.id !== undefined ? rd.id : rd[0]),
@@ -1326,6 +1533,7 @@ function normRound(rd) {
     shortPool: Number(rd.shortPool !== undefined ? rd.shortPool : rd[9]),
     status: Number(rd.status !== undefined ? rd.status : rd[10]),
     outcome: Number(rd.outcome !== undefined ? rd.outcome : rd[11]),
+    assetId: Number(rd.assetId !== undefined ? rd.assetId : (rd[12] !== undefined ? rd[12] : 0)),
   };
 }
 async function discoverRound() {
@@ -1334,7 +1542,7 @@ async function discoverRound() {
   const mn = modeNum();
   let id = 0;
   if (!CONTRACT_PENDING.latestRoundId) {
-    try { const v = await S.contract.latestRoundId(mn, TOKEN.address); if (v) id = Number(v); } catch (e) {}
+    try { const v = await S.contract.latestRoundId(mn, S.assetId); if (v) id = Number(v); } catch (e) {}
   }
   if (!id) {
     try { const n = await S.contract.nextRoundId(); if (n && Number(n) > 0) id = Number(n) - 1; } catch (e) {}
@@ -1346,19 +1554,21 @@ async function discoverRound() {
     if (!rd) break;
     const r = normRound(rd);
     if (r.mode !== mn) continue;
+    if (r.assetId !== S.assetId) continue;
     if (r.token.toLowerCase() !== TOKEN.address.toLowerCase()) continue;
     // Keeper 会提前创建下一局（status 也是 OPEN）：未来局不能下注，跳过往回找已开始的局
     if (r.startTime > nowSec) { if (!futureRound) futureRound = r; continue; }
-    chainRound = r; return r;
+    chainRound = r; nextChainRound = futureRound; return r;
   }
-  if (futureRound) { chainRound = futureRound; return futureRound; }
+  if (futureRound) { chainRound = futureRound; nextChainRound = null; return futureRound; }
   try {
     const bn = await S.provider.getBlockNumber();
     const evts = await S.contract.queryFilter(S.contract.filters.RoundCreated(null, mn, TOKEN.address), Math.max(0, bn - 2400), bn);
     if (evts.length) {
       const rid = Number(evts[evts.length - 1].args.roundId);
       const rd = await S.contract.getRound(rid);
-      chainRound = normRound(rd);
+      const nr = normRound(rd);
+      if (nr.assetId === S.assetId) { chainRound = nr; return chainRound; }
       return chainRound;
     }
   } catch (e) {}
@@ -1377,6 +1587,8 @@ function roundTitle(id) {
   return t("round.new", { id }) + " · " + (S.mode === "speed" ? t("mode.speedShort") : S.mode === "mid" ? t("mode.midShort") : t("mode.classicShort"));
 }
 function tickRound() {
+  if (S.assetId === 6 && !usMarketOpenFE()) { showNvdaClosed(); return; }
+  hideNvdaClosed();
   if (S.contract && chainRound) { tickChainRound(); return; }
   const r = currentRound();
   S.viewWin = { start: r.start - 10, end: r.end + 14 };
@@ -1396,18 +1608,21 @@ function tickRound() {
     refreshPools();
   }
   const bettingOpen = r.nowSec < r.lockAt;
+  // 单段制（演示态）：开始价格在本局开始时采（与链上口径一致）
+  if (bettingOpen && S.lockPrice == null && S.price) {
+    S.lockPrice = S.price;
+    S.chartLock = { price: S.price, time: r.start };
+    $("lockPrice").textContent = fmtPrice(S.lockPrice);
+  }
   const phase = bettingOpen ? "betting" : "locked";
   if (phase !== lastPhase) {
     lastPhase = phase;
     S.phase = phase;
     if (phase === "locked") {
-      S.lockPrice = S.price;
-      S.chartLock = S.price ? { price: S.price, time: r.lockAt } : null;
-      $("lockPrice").textContent = fmtPrice(S.lockPrice);
       $("phaseTag").textContent = t("phase.locked");
       $("phaseTag").className = "phase-tag locked";
       $("cdLabel").textContent = t("cd.locked");
-      $("cdSub").textContent = t("cd.lockedSub", { price: fmtPrice(S.lockPrice) });
+      $("cdSub").textContent = S.lockPrice ? t("cd.lockedSub", { price: fmtPrice(S.lockPrice) }) : t("cd.settling");
       flashScreen();
       bgmImpact("lock");
     } else {
@@ -1424,26 +1639,28 @@ function tickRound() {
     el.textContent = mmss(left);
     el.classList.toggle("warn", left <= 15);
     el.classList.toggle("urgent", left <= 15);
-    beepCountdown("lock", left);
+    beepCountdown("lock", left); updateCd321(left);
   } else {
     const el = $("cutoffTimer");
     el.textContent = t("bet.locked");
     el.classList.remove("warn");
     el.classList.remove("urgent");
-    beepCountdown("settle", r.end - r.nowSec);
+    beepCountdown("settle", r.end - r.nowSec); updateCd321(99);
   }
   $("lockTimer").textContent = mmss(r.end - r.nowSec);
   $("lockSub").textContent = bettingOpen
     ? t("cd.lockAt", { time: new Date(r.lockAt * 1000).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false }) })
     : t("cd.settling");
   const csEl = $("chartState"); if (csEl) csEl.textContent = phase === "betting" ? t("state.betting") : t("state.waiting");
+  updateBigCd(Math.max(0, r.end - r.nowSec), Math.max(1, r.end - r.start), phase,
+    phase === "locked" ? t("cd.nextRound", { time: fmtClock(r.end), sec: Math.max(0, r.end - r.nowSec) }) : "");
   updateBetBtn();
 }
 function tickChainRound() {
   const r = chainRound;
   const nowSec = Math.floor(Date.now() / 1000);
   if (r.id !== lastChainId) {
-    if (lastChainId !== null) settlePrevRound(lastChainId);
+    if (lastChainId !== null && lastChainId !== S.lastSettledId) settlePrevRound(lastChainId);
     lastChainId = r.id;
     S.roundId = r.id;
     S.lockPrice = null;
@@ -1459,6 +1676,20 @@ function tickChainRound() {
     showRoundTransition(r.id);
     refreshPools();
   }
+  // 单段制：开始价格以链上采价为准（lockPrice 字段，keeper 在 startTime 后采）
+  if (r.lockPrice && Number(r.lockPrice) > 0) {
+    const sp = Number(r.lockPrice) / 1e8;
+    if (S.lockPrice !== sp) {
+      S.lockPrice = sp;
+      S.chartLock = { price: sp, time: r.startTime };
+      $("lockPrice").textContent = fmtPrice(sp);
+    }
+  }
+  // 单段制：本局在链上变 SETTLED 即定版（结束价取链上 closePrice），不等切到下一局
+  if (r.status === 2 && S.lastSettledId !== r.id) {
+    if (r.closePrice && Number(r.closePrice) > 0) S.closePrice = Number(r.closePrice) / 1e8;
+    settlePrevRound(r.id);
+  }
   const cutoff = r.lockTime - CONFIG.BET_CUTOFF_SEC;
   const bettingOpen = nowSec < cutoff && nowSec >= r.startTime && r.status === 0;
   S.viewWin = { start: (r.startTime || (r.lockTime - roundDuration())) - 10, end: r.closeTime + 14 };
@@ -1468,13 +1699,11 @@ function tickChainRound() {
     lastPhase = phase;
     S.phase = phase;
     if (phase === "locked") {
-      S.lockPrice = S.price;
-      S.chartLock = S.price ? { price: S.price, time: r.lockTime } : null;
-      $("lockPrice").textContent = fmtPrice(S.lockPrice);
+      // 单段制：最后 15 秒是「结果生成中」，开始价早已在开局采好，不在此处采样
       $("phaseTag").textContent = t("phase.locked");
       $("phaseTag").className = "phase-tag locked";
       $("cdLabel").textContent = t("cd.locked");
-      $("cdSub").textContent = t("cd.lockedSub", { price: fmtPrice(S.lockPrice) });
+      $("cdSub").textContent = S.lockPrice ? t("cd.lockedSub", { price: fmtPrice(S.lockPrice) }) : t("cd.settling");
       flashScreen();
       bgmImpact("lock");
     } else {
@@ -1491,13 +1720,13 @@ function tickChainRound() {
     el.textContent = mmss(left);
     el.classList.toggle("warn", left <= 15);
     el.classList.toggle("urgent", left <= 15);
-    beepCountdown("lock", left);
+    beepCountdown("lock", left); updateCd321(left);
   } else {
     const el = $("cutoffTimer");
     el.textContent = t("bet.locked");
     el.classList.remove("warn");
     el.classList.remove("urgent");
-    beepCountdown("settle", r.closeTime - nowSec);
+    beepCountdown("settle", r.closeTime - nowSec); updateCd321(99);
   }
   $("lockTimer").textContent = mmss(Math.max(0, r.closeTime - nowSec));
   $("lockSub").textContent = bettingOpen
@@ -1505,6 +1734,9 @@ function tickChainRound() {
     : t("cd.settling");
   if (nowSec > r.closeTime + 2) discoverRound();
   const csEl2 = $("chartState"); if (csEl2) csEl2.textContent = phase === "betting" ? t("state.betting") : t("state.waiting");
+  updateBigCd(Math.max(0, r.closeTime - nowSec), Math.max(1, r.lockTime - r.startTime), phase,
+    nextChainRound ? t("cd.nextRound", { time: fmtClock(nextChainRound.startTime), sec: Math.max(0, nextChainRound.startTime - nowSec) })
+      : (phase === "locked" ? t("cd.nextCreating") : ""));
   updateBetBtn();
 }
 function settlePrevRound(prevId) {
@@ -1526,8 +1758,21 @@ function settlePrevRound(prevId) {
   saveBets();
   S.chartClose = close ? { price: close, time: Date.now() / 1000 } : null;
   S.chartResult = myWin ? "win" : myLose ? "lose" : (rec.result === "draw" ? "draw" : null);
-  flashScreen();
-  showResultBanner(rec.result, myWin, myLose);
+  // 我的本局净额（按合约分账公式估算：赢方按比例分净池 95%，尘差忽略）：
+  // 结果条展示用，不参与任何账目。
+  let myNet = 0, myStake = 0;
+  {
+    const totalPool = (S.pools.long || 0) + (S.pools.short || 0);
+    const winPool = rec.result === "long" ? (S.pools.long || 0) : (S.pools.short || 0);
+    S.myBets.forEach((b) => {
+      if (b.roundId !== prevId) return;
+      myStake += b.amount || 0;
+      if (rec.result === "draw") return;
+      if (b.side === rec.result && winPool > 0) myNet += (b.amount * totalPool * 0.95) / winPool - b.amount;
+      else if (b.side !== rec.result) myNet -= b.amount || 0;
+    });
+  }
+  showResultBar(rec, myNet, myStake);
   renderRoad();
   S.stats.rounds++;
   S.stats.paid += (S.pools.long || 0) + (S.pools.short || 0);
@@ -1537,8 +1782,6 @@ function settlePrevRound(prevId) {
   if (S.contract) refreshChainStats();
   if (window.__bgBurst) window.__bgBurst(rec.result);
   const csS = $("chartState"); if (csS) csS.textContent = t("state.settling");
-  if (myWin) celebrateWin();
-  else if (myLose) shockwaveLose();
   drawKline();
   renderRecords();
 }
@@ -2082,6 +2325,17 @@ function flashScreen() {
   if (!f) return;
   f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
 }
+function updateCd321(left) {
+  const el = $("cd321");
+  if (!el) return;
+  if (left >= 1 && left <= 3) {
+    const n = $("cd321Num");
+    if (n) n.textContent = left;
+    el.classList.add("show");
+  } else {
+    el.classList.remove("show");
+  }
+}
 function showRoundTransition(id) {
   if (!FX.on) return;
   const rt = $("roundTrans");
@@ -2099,18 +2353,13 @@ function showBetConfirm() {
   setTimeout(() => el.classList.remove("show"), 2200);
 }
 function shockwaveLose() {
-  if (!FX.on) return;
-  const w = $("shockwave");
-  if (!w) return;
-  w.classList.remove("go"); void w.offsetWidth; w.classList.add("go");
+  // 已废弃（2026-11-25）：输局不再做冲击波失败动画，结果统一走 showResultBar 一条带过。
+  // 函数保留空壳，防止旧引用报错。
 }
 function celebrateWin() {
-  const title = $("winTitle"), sub = $("winSub");
-  if (title) title.textContent = "🎉 " + t("win.title");
-  if (sub) sub.textContent = t("win.sub");
-  const b = $("winBanner");
-  if (b) { b.classList.add("show"); setTimeout(() => b.classList.remove("show"), 4200); }
-  if (FX.on) launchConfetti();
+  // 已废弃（2026-11-25）：原实现是 winBanner 中奖弹窗 + launchConfetti 五彩纸屑，
+  // 用户明确不要这种跳出式动画，已删除调用；结果统一走 showResultBar 结果条。
+  // 函数保留空壳，防止旧引用报错。
 }
 function launchConfetti() {
   const cv = $("confetti");
@@ -2542,11 +2791,11 @@ async function seedKlines() {
   // 源顺序与价格源一致：Gate → Bitget → Binance Vision；任一成功即停。
   const lim = KLINE.max;
   const srcs = [
-    { u: "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1m&limit=" + lim,
+    { u: "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=" + PAIR_USDT + "&interval=1m&limit=" + lim,
       parse: (j) => (Array.isArray(j) ? j : []).map((r) => ({ t: +r[0] * 1000, o: +r[5], h: +r[3], l: +r[4], c: +r[2], n: 1 })) },
-    { u: "https://api.bitget.com/api/v2/spot/market/candles?symbol=BTCUSDT&granularity=1min&limit=" + lim,
+    { u: "https://api.bitget.com/api/v2/spot/market/candles?symbol=" + SYMBOL + "&granularity=1min&limit=" + lim,
       parse: (j) => ((j && j.data) || []).map((r) => ({ t: +r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4], n: 1 })) },
-    { u: "https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=" + lim,
+    { u: "https://data-api.binance.vision/api/v3/klines?symbol=" + SYMBOL + "&interval=1m&limit=" + lim,
       parse: (j) => (Array.isArray(j) ? j : []).map((r) => ({ t: +r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4], n: 1 })) },
   ];
   for (const s of srcs) {
@@ -2747,8 +2996,15 @@ function drawLine() {
   const em = $("chartEmpty");
   const now = Date.now();
   const win = S.viewWin;
-  const t0 = now - 900000;
-  const t1 = now + 5000;
+  // 单段制图表窗口（2026-11-25，对齐竞品）：横轴 = 本局起止时间，
+  // 线从左端开始价画到右端实时价，一局一窗。viewWin 由 tick 维护为
+  // {start: 局开始-10s, end: 局结束+14s}，这里还原为局本身并留 4 秒小尾；
+  // 无有效 viewWin（行情预热期）时回退原 15 分钟滚动窗口。
+  let t0 = now - 900000, t1 = now + 5000;
+  if (win && win.start && win.end && (win.end - win.start) <= 344 && win.end * 1000 > now - 3600000) {
+    t0 = (win.start + 10) * 1000;
+    t1 = (win.end - 14) * 1000 + 4000;
+  }
   rebuildLineTicks();
   const livePts = S.ticks.filter((k) => k.t >= t0 - 30000 && k.t <= now + 1000);
   // 混合序列：蜡烛采样点打底 + 实时 tick 点覆盖同一时间段——两侧同价同轴，线条连续不断层
@@ -2808,6 +3064,9 @@ function drawLine() {
   const tx = (ms) => x0 + Math.max(0, Math.min(1, (ms - t0) / (t1 - t0))) * (x1 - x0);
   ctx.font = "10px sans-serif";
   ctx.textBaseline = "middle";
+  // 背景点阵（对齐竞品：深色底 + 点阵网格）
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let gx = x0 + 6; gx < x1; gx += 14) for (let gy = padT + 4; gy < H - padB; gy += 14) { ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill(); }
   ctx.strokeStyle = "rgba(42,50,64,.55)";
   ctx.fillStyle = "#8b96ad";
   ctx.lineWidth = 1;
@@ -2887,12 +3146,16 @@ function drawLine() {
   ctx.strokeStyle = S.phase === "locked" ? "#d7f75b" : "#ffa02e";
   ctx.lineWidth = 2.6;
   ctx.shadowColor = ctx.strokeStyle;
-  ctx.shadowBlur = 5;
+  ctx.shadowBlur = 14;
   ctx.stroke();
   ctx.lineTo(hx, H - padB);
   ctx.lineTo(tx(sm[0].t), H - padB);
   ctx.closePath();
-  ctx.fillStyle = S.phase === "locked" ? "rgba(200,230,74,.07)" : "rgba(255,140,66,.07)";
+  // 线下渐变填充（对齐竞品：上浓下淡，随阶段变色）
+  const fg = ctx.createLinearGradient(0, padT, 0, H - padB);
+  if (S.phase === "locked") { fg.addColorStop(0, "rgba(215,247,91,.30)"); fg.addColorStop(1, "rgba(215,247,91,0)"); }
+  else { fg.addColorStop(0, "rgba(255,160,46,.30)"); fg.addColorStop(1, "rgba(255,160,46,0)"); }
+  ctx.fillStyle = fg;
   ctx.fill();
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fill();
   ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
@@ -2944,7 +3207,8 @@ async function refreshChainStats() {
     try { cache = JSON.parse(localStorage.getItem("dk_stats_chain_v1") || "null") || cache; } catch (e) {}
     if (!cache.scanned) cache = { scanned: { 0: 0, 1: 0, 2: 0 }, paid: 0, settled: 0 };
     for (const m of [0, 1, 2]) {
-      const latest = Number(await S.contract.latestRoundId(m, token));
+      let latest = 0;
+      for (let a = 0; a <= 6; a++) { try { latest = Math.max(latest, Number(await S.contract.latestRoundId(m, a))); } catch (e) {} }
       let from = Math.max(cache.scanned[m] || 0, latest - 400);
       for (let id = from + 1; id <= latest; id += 20) {
         const batch = [];
@@ -3029,30 +3293,50 @@ function startRain(b, result) {
   };
   showResultBanner._raf = requestAnimationFrame(frame);
 }
-function showResultBanner(result, myWin, myLose) {
-  if (!result) return;
-  let b = $("resultBanner");
+/* 单段制结果条（2026-11-25 定版，替代旧 showResultBanner）：
+   旧实现是全屏 VS 对峙横幅 + 金币雨幕 + winBanner 弹窗 + 五彩纸屑，用户明确说蠢，已删除其调用。
+   新口径：底部一条干净结果条——方向、开始价 → 结束价、我的净额（数字滚动），
+   淡入上滑出现、5 秒自动收起；不遮挡图表、无角色跳出；输了一样一条带过，无失败动画。 */
+function showResultBar(rec, myNet, myStake) {
+  if (!rec || !rec.result) return;
+  let b = $("resultBar");
   if (!b) {
     b = document.createElement("div");
-    b.id = "resultBanner";
+    b.id = "resultBar";
     document.body.appendChild(b);
   }
-  clearTimeout(showResultBanner._tm);
-  clearTimeout(showResultBanner._tm2);
-  if (showResultBanner._raf) cancelAnimationFrame(showResultBanner._raf);
-  b.className = "result-banner show vs";
-  b.innerHTML = '<div class="rb-vs"><div class="rb-side long"><span>' + t("bet.long") + '</span></div><div class="rb-side short"><span>' + t("bet.short") + '</span></div><div class="rb-bolt"><em>V</em><strong>S</strong></div></div>';
-  bgmRiser(1.35);
-  setSegs(2);
-  showResultBanner._tm = setTimeout(() => {
-    const main = result === "draw" ? t("win.draw") : result === "long" ? "↗ " + t("win.long") : "↘ " + t("win.short");
-    b.className = "result-banner show " + result;
-    b.innerHTML = '<canvas class="rb-rain"></canvas><div class="rb-main">' + main + '</div><div class="rb-sub">' + t("win.paying") + '</div>';
-    bgmImpact(myWin ? "win" : myLose ? "lose" : "neutral");
-    setSegs(3);
-    startRain(b, result);
-    showResultBanner._tm2 = setTimeout(() => { b.classList.remove("show"); if (showResultBanner._raf) cancelAnimationFrame(showResultBanner._raf); }, 2300);
-  }, 1400);
+  clearTimeout(showResultBar._tm);
+  if (showResultBar._raf) cancelAnimationFrame(showResultBar._raf);
+  const dir = rec.result === "draw" ? t("win.draw") : rec.result === "long" ? "↗ " + t("win.long") : "↘ " + t("win.short");
+  const prices = (rec.lock ? fmtPrice(rec.lock) : "—") + " → " + (rec.close ? fmtPrice(rec.close) : "—");
+  let amtHtml = "";
+  if (myStake > 0) {
+    if (rec.result === "draw") amtHtml = '<span class="rb-amt flat">' + t("win.draw") + '</span>';
+    else if (myNet > 0) amtHtml = '<span class="rb-amt pos" data-roll="' + Math.round(myNet) + '">+0 $SI</span>';
+    else if (myNet < 0) amtHtml = '<span class="rb-amt neg" data-roll="' + Math.round(myNet) + '">0 $SI</span>';
+    else amtHtml = '<span class="rb-amt flat">0 $SI</span>';
+  }
+  const mine = S.myBets.some((x) => x.roundId === rec.id);
+  b.className = "result-bar " + (mine ? (rec.result === "draw" ? "draw" : myNet > 0 ? "win" : myNet < 0 ? "lose" : "draw") : rec.result === "long" ? "win" : rec.result === "short" ? "lose" : "draw");
+  b.innerHTML = '<span class="rb-dir">' + dir + '</span><span class="rb-prices">' + prices + '</span>' + amtHtml;
+  // 触发淡入上滑
+  b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
+  bgmImpact(myNet > 0 ? "win" : myNet < 0 ? "lose" : "neutral");
+  setSegs(3);
+  // 金额数字滚动（600ms）
+  const amtEl = b.querySelector("[data-roll]");
+  if (amtEl) {
+    const target = Number(amtEl.getAttribute("data-roll"));
+    const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / 600);
+      const v = Math.round(target * (1 - Math.pow(1 - k, 3)));
+      amtEl.textContent = (v > 0 ? "+" : "") + fmt(v) + " $SI";
+      if (k < 1) showResultBar._raf = requestAnimationFrame(step);
+    };
+    showResultBar._raf = requestAnimationFrame(step);
+  }
+  showResultBar._tm = setTimeout(() => b.classList.remove("show"), 5000);
 }
 
 /* ---------------- 入场仪式（纯展示闪屏，1.2 秒内自动走） ----------------
@@ -3082,6 +3366,7 @@ function enterArena() {
 
 /* ---------------- 事件绑定 ---------------- */
 function bindUI() {
+  document.querySelectorAll(".asset-chip").forEach((c) => { c.onclick = () => setAsset(Number(c.dataset.asset)); });
   $("modeSpeed").onclick = () => setMode("speed");
   $("modeClassic").onclick = () => setMode("classic");
   $("connectBtn").onclick = quickConnect;
@@ -3256,8 +3541,8 @@ function init() {
   safeStep("calc", updateCalc);
   safeStep("betBtn", updateBetBtn);
   safeStep("source", () => startSim()); // 打开先跑模拟价兜底，价格/K线立刻有数
-  safeStep("provider", () => connectProvider(0));
-  safeStep("klineSeed", () => { seedKlines(); });
+  safeStep("provider", () => startAssetFeeds(S.assetId));
+  safeStep("klineSeed", () => { if (ASSETS_META[S.assetId].kind === "crypto") seedKlines(); });
   safeStep("poll24h", poll24h);
   setInterval(poll24h, 30000);
   safeStep("tickRound", tickRound);
