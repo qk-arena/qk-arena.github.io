@@ -2905,14 +2905,24 @@ async function doBet() {
       if (m2.includes("user rejected") || m2.includes("User denied")) { toast(t("toast.cancelled")); return; }
       throw e;
     }
-    const tx = await S.contract.placeBetFromWalletToken(S.roundId, S.side === "long", amountWei, curAddr());
+    const betRoundId = S.roundId, betSide = S.side, betMode = S.mode, betCur = S.currency, betLock = S.lockPrice;
+    const tx = await S.contract.placeBetFromWalletToken(betRoundId, betSide === "long", amountWei, curAddr());
     toast(t("toast.betSent"));
     const rc = await tx.wait();
-    const bet = { roundId: S.roundId, mode: S.mode, side: S.side, amount: amt, currency: S.currency, lockPrice: S.lockPrice, tx: rc.hash, at: Date.now(), result: null };
+    // round32：记录的局号以回执 BetPlaced 事件为准。下单字段在发送前先快照——
+    // 旧版在 tx.wait() 之后才读 S.roundId，确认期间页面已滚到下一局，记录被盖成
+    // 下一局的号（实注 331 记成 344），从此永远对不上结算、一直挂「进行中」。
+    let realRoundId = betRoundId;
+    try {
+      for (const lg of rc.logs || []) {
+        try { const d = S.contract.interface.parseLog(lg); if (d && d.name === "BetPlaced") { const rid = Number(d.args.roundId !== undefined ? d.args.roundId : d.args[0]); if (rid) realRoundId = rid; break; } } catch (e) {}
+      }
+    } catch (e) {}
+    const bet = { roundId: realRoundId, mode: betMode, side: betSide, amount: amt, currency: betCur, lockPrice: betLock, tx: rc.hash, at: Date.now(), result: null, verified: true };
     S.myBets.unshift(bet);
     if (S.myBets.length > 50) S.myBets.length = 50;
     saveBets();
-    S.pools[S.side] += amt;
+    S.pools[betSide] += amt;
     renderPools();
     refreshBalances();
     renderRecords();
@@ -2996,6 +3006,53 @@ function renderRecords() {
     if (!S.rounds.length) { list.innerHTML = '<div class="empty">' + t("rec.noHistory") + '</div>'; return; }
     list.innerHTML = S.rounds.slice(0, 15).map((r) => '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: r.id }) + ' · ' + (r.mode === "speed" ? t("mode.speedShort") : r.mode === "mid" ? t("mode.midShort") : t("mode.classicShort")) + '</span><span>' + (r.result === "long" ? t("rec.longWin") : r.result === "short" ? t("rec.shortWin") : r.result === "draw" ? t("rec.drawR") : "—") + '</span></div><div class="rec-sub">' + new Date(r.at).toLocaleString(LANG === "zh" ? "zh-CN" : "en-US") + ' · ' + t("rec.lockSettle", { lock: fmtPriceFor(r.lock, r.assetId), close: fmtPriceFor(r.close, r.assetId) }) + '</div></div>').join("");
   }
+}
+
+/* round32 对账回填：给一直挂「进行中」的下注记录找真实结果。
+   旧记录的局号可能被确认期间的滚局盖错（见 doBet 注释），所以先按交易回执
+   的 BetPlaced 事件纠正局号，再按链上局状态回填结果；回执拿不到时用「该局
+   下注名单里有我」做守卫——名单里没我绝不回填，防止拿错局的结果盖上。 */
+let _reconciling = false;
+async function reconcileBets() {
+  if (_reconciling || !S.account || !CONFIG.CONTRACT_ADDRESS) return;
+  const pend = S.myBets.filter((b) => !b.result && b.tx);
+  if (!pend.length) return;
+  _reconciling = true;
+  let changed = false;
+  try {
+    const rc0 = await readContract();
+    if (!rc0) return;
+    const rp = S.provider || (rc0.runner && rc0.runner.provider) || rc0.runner;
+    for (const b of pend) {
+      try {
+        if (!b.verified && rp && rp.getTransactionReceipt) {
+          const receipt = await rp.getTransactionReceipt(b.tx);
+          if (receipt && receipt.logs) {
+            for (const lg of receipt.logs) {
+              try { const d = rc0.interface.parseLog(lg); if (d && d.name === "BetPlaced") { const rid = Number(d.args.roundId !== undefined ? d.args.roundId : d.args[0]); if (rid && rid !== b.roundId) b.roundId = rid; b.verified = true; changed = true; break; } } catch (e) {}
+            }
+          }
+        }
+        let mine = !!b.verified;
+        if (!mine) {
+          try { const bs = await rc0.getRoundBettors(b.roundId); mine = (bs || []).some((a) => String(a).toLowerCase() === S.account.toLowerCase()); if (mine) { b.verified = true; changed = true; } } catch (e) {}
+        }
+        if (!mine) continue;
+        const rd = await rc0.getRound(b.roundId);
+        const st = Number(rd.status);
+        if (st === 2) {
+          const oc = Number(rd.outcome);
+          const win = oc === 1 ? "long" : oc === 2 ? "short" : (oc === 3 || oc === 4) ? "draw" : null;
+          if (win) { b.result = win === "draw" ? "draw" : (b.side === win ? "win" : "lose"); b.closePrice = Number(rd.closePrice) / 1e8; changed = true; }
+        } else if (st === 3) {
+          b.result = "draw"; // 局被取消 = 全额退款，与平局同为退款展示
+          changed = true;
+        }
+      } catch (e) { /* 单条对账失败不影响其他记录，下个周期再试 */ }
+    }
+  } catch (e) {
+  } finally { _reconciling = false; }
+  if (changed) { saveBets(); renderRecords(); }
 }
 
 /* ---------------- 邀请 ---------------- */
@@ -4860,6 +4917,8 @@ function init() {
   safeStep("tickRound", tickRound);
   setInterval(tickRound, 1000);
   setInterval(refreshPools, 15000);
+  setInterval(reconcileBets, 20000); // round32：无结果下注记录对账回填
+  setTimeout(reconcileBets, 5000);
   setInterval(() => { if (S.contract) discoverRound().then(() => { refreshPools(); }); }, 15000);
   // 逐 tick 丝滑重绘（验收红线）：采样点一变就标脏，rAF 按动画帧重绘线图，
   // 线的动势与 tick 同步，不再 500ms 一跳；K 线模式保留 500ms 节奏。
