@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round22">
+<meta name="qk-build" content="round23">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -265,7 +265,7 @@ input{font-family:inherit}
 
 /* ---------- 顶栏控制：语言 / BGM ---------- */
 .topbar-in{flex-wrap:wrap}
-.top-controls{display:flex;align-items:center;gap:6px}
+.top-controls{display:flex;align-items:center;gap:6px;margin-left:auto}
 .mini-btn{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 10px;font-size:12px;font-weight:800;color:var(--gold2);white-space:nowrap}
 .mini-btn:active{transform:scale(.96)}
 .vol{width:62px;accent-color:var(--gold);cursor:pointer}
@@ -292,7 +292,7 @@ input{font-family:inherit}
 @keyframes depPulse{0%,100%{box-shadow:0 0 0 0 rgba(216,180,90,.65)}50%{box-shadow:0 0 0 7px rgba(216,180,90,0)}}
 
 /* ---------- K 线图 ---------- */
-.chart-card{margin-top:14px;background:linear-gradient(180deg,#101728,#0b0f1a);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.chart-card{margin-top:14px;background:transparent;border:none;border-radius:0;overflow:hidden}
 .chart-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px 4px}
 .chart-head h2{font-size:14px;letter-spacing:1px}
 .chart-legend{font-size:11px;color:var(--muted);white-space:nowrap}
@@ -305,7 +305,7 @@ input{font-family:inherit}
    及其全部浮层（纵轴/气泡是 canvas 自绘、随 canvas 一起消失；等待行情/阶段字/
    结算倒数是 DOM 浮层、逐个藏），原位只显示当前价 + 本局开始价 + 涨跌。 */
 .si-panel{display:none}
-.chart-wrap.si-mode #kline,.chart-wrap.si-mode .chart-empty,.chart-wrap.si-mode .chart-state,.chart-wrap.si-mode .cs-segs,.chart-wrap.si-mode .cd321{display:none !important}
+.chart-wrap.si-mode #kline,.chart-wrap.si-mode .chart-empty,.chart-wrap.si-mode .chart-chip,.chart-wrap.si-mode .chart-state,.chart-wrap.si-mode .cs-segs,.chart-wrap.si-mode .cd321{display:none !important}
 .chart-wrap.si-mode .si-panel{display:flex;height:100%;min-height:190px;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px 8px}
 .si-panel-label{font-size:12px;color:var(--muted);letter-spacing:2px}
 .si-panel-price{font-size:46px;font-weight:900;line-height:1.05;color:#f5e7bd;text-shadow:0 2px 18px rgba(216,180,90,.25)}
@@ -316,9 +316,13 @@ input{font-family:inherit}
 .ct-btn{background:#1a2338;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer}
 .ct-btn.sel{color:#171204;background:#d8b45a;border-color:transparent;font-weight:700}
 /* ===== round15 复刻：顶部对局卡 / 图内工具 / 币种切换 / 两个小人 ===== */
-.pair-card{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#12161f;border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin:8px 0}
+.pair-card{background:#12161f;border:1px solid var(--line);border-radius:14px;padding:10px 14px;margin:8px 0}
+.pair-main{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pair-road{margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
 .pair-left{display:flex;align-items:center;gap:10px;min-width:0}
 .pair-coin{width:36px;height:36px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe9a8,#f5c542 60%,#d8a028);color:#171204;font-weight:900;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none}
+.pair-coin.has-logo{background:none}
+.pair-coin svg,.pair-coin img{width:100%;height:100%;display:block;border-radius:50%}
 .pair-name{font-size:16px;font-weight:800;color:#e8edf7;white-space:nowrap}
 .pair-caret{color:var(--muted);font-size:11px}
 .pair-mode{display:inline-block;margin-top:2px;font-size:10px;color:#ff9d45;background:rgba(255,138,42,.14);border-radius:4px;padding:1px 6px}
@@ -370,8 +374,8 @@ input{font-family:inherit}
 .road-legend{font-size:11px;color:var(--muted);white-space:nowrap}
 .rdot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:-1px}
 .rdot.long{background:#1ecb6e}.rdot.short{background:#f6465d}.rdot.draw{background:#8b96ad}
-.road-grid{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;min-height:14px}
-.road-grid .rdot{width:14px;height:14px}
+.road-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(3,24px);grid-auto-columns:24px;gap:4px;margin-top:6px;height:80px;overflow-x:auto;overflow-y:hidden}
+.road-grid .rdot{width:24px;height:24px}
 .road-empty{color:var(--muted);font-size:12px;white-space:nowrap;position:absolute;left:2px;top:50%;transform:translateY(-50%)}
 .road-grid{position:relative}
 /* 单段制结果条（2026-11-25）：干净利落，不遮图、无角色跳出；淡入上滑 + 数字滚动 */
@@ -423,7 +427,8 @@ input{font-family:inherit}
 .stat{flex:1;background:linear-gradient(180deg,#0d1119,#090c12);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;text-align:center}
 .stat-v{font-size:19px;font-weight:800;color:#f5c542;font-variant-numeric:tabular-nums}
 .stat-k{font-size:11px;color:var(--muted);margin-top:2px}
-.chart-state{position:absolute;top:6px;left:8px;z-index:3;background:rgba(10,14,24,.55);border:1px solid rgba(255,255,255,.08);color:rgba(232,237,247,.85);font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;pointer-events:none}
+.chart-chip{position:absolute;top:8px;left:8px;z-index:6;background:rgba(10,14,24,.55);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:5px 10px 7px;display:flex;flex-direction:column;gap:4px;pointer-events:none}
+.chart-state{color:rgba(232,237,247,.9);font-size:11px;font-weight:700;pointer-events:none;white-space:nowrap}
 .payout-line{margin-top:10px;text-align:right;font-size:13px;font-weight:700;color:#f5c542;font-variant-numeric:tabular-nums;min-height:18px}
 #bgFx{position:fixed;inset:0;z-index:-1;pointer-events:none}
 #chartCard{background:rgba(10,14,24,.42)}
@@ -437,7 +442,7 @@ body{padding-bottom:78px}
 .tabbar button.on{color:#f5c542}
 .tabbar .tb-center .tb-ico{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#f0d48a,#c39a2e);color:#171204;font-size:22px;margin-top:-28px;box-shadow:0 8px 22px rgba(216,180,90,.5);border:3px solid #07090f}
 .tabbar .tb-center{color:#f0d48a;font-weight:800}
-.cs-segs{position:absolute;top:42px;left:12px;z-index:6;display:flex;gap:3px}
+.cs-segs{display:flex;gap:3px}
 .cs-segs i{width:15px;height:3px;border-radius:2px;background:rgba(255,255,255,.16)}
 .cs-segs i.on{background:#e9cf8f}
 #betPanel.locked .side-btn{filter:saturate(.35) brightness(.72)}
@@ -464,7 +469,7 @@ body{padding-bottom:78px}
 .stat-v{font-size:16px}
 .stat-k{font-size:11px}
 .road-card{margin-top:8px;padding:6px 12px;background:linear-gradient(180deg,#0d1119,#090c12);max-height:104px;overflow:hidden}
-.chart-card{margin-top:8px;background:linear-gradient(180deg,#0d1119,#090c12)}
+.chart-card{margin-top:8px;background:transparent}
 #kline{height:196px}
 .ct-btn{white-space:nowrap;padding:4px 11px;font-size:12px}
 #betPanel{padding:9px 10px}
@@ -588,9 +593,9 @@ html{scrollbar-gutter:stable}
   .road-card{flex:0 0 auto;margin-top:0;padding:6px 10px 8px}
   .road-head{margin:0}
   .road-head h2{font-size:12px}
-  .road-grid{display:grid !important;grid-auto-flow:column !important;grid-template-rows:repeat(2,22px) !important;grid-auto-columns:22px !important;gap:4px !important;margin-top:4px !important;height:52px !important;max-height:52px !important;overflow-x:auto !important;overflow-y:hidden !important}
-  .road-grid .rdot{width:22px !important;height:22px !important}
-  #chartCard{flex:1 1 auto;min-height:300px;max-height:352px;display:flex;flex-direction:column;margin-top:6px}
+  .road-grid{display:grid !important;grid-auto-flow:column !important;grid-template-rows:repeat(3,24px) !important;grid-auto-columns:24px !important;gap:4px !important;margin-top:4px !important;height:80px !important;max-height:80px !important;overflow-x:auto !important;overflow-y:hidden !important}
+  .road-grid .rdot{width:24px !important;height:24px !important}
+  #chartCard{flex:1 1 auto;min-height:300px;max-height:352px;display:flex;flex-direction:column;margin-top:6px;margin-left:-14px;margin-right:-14px}
   .chart-wrap{flex:1 1 auto;min-height:0}
   .chart-wrap.si-mode .si-panel{min-height:0}
   #kline{position:absolute;left:0;top:0;width:100%;height:100% !important}
@@ -633,12 +638,6 @@ html{scrollbar-gutter:stable}
         <div class="logo-sub">QIANKUN ARENA · $SI 链上下注</div>
       </div>
     </div>
-    <div class="price-box">
-      <div class="price"><span id="price">—</span> <small id="pairLabel">SI/USDT</small></div>
-      <div><span class="chg" id="chg24">—</span>
-        <span class="src-badge"><span class="src-dot" id="srcDot"></span><span id="srcName">行情连接中…</span></span>
-      </div>
-    </div>
     <div class="top-controls">
       <button class="mini-btn" id="langBtn" title="切换语言 / Switch language">EN</button>
     </div>
@@ -656,33 +655,26 @@ html{scrollbar-gutter:stable}
 
   <!-- ===== 顶部对局卡（round15 照竞品版式：币种图标+交易对+场次 / 24h 交易人数+累计已发放金额） ===== -->
   <section class="pair-card" id="pairCard">
-    <div class="pair-left">
-      <div class="pair-coin" id="pairCoin">₿</div>
-      <div>
-        <div class="pair-name"><span id="pairName">BTC/USDT</span> <span class="pair-caret">▾</span></div>
-        <div class="pair-mode" id="pairMode">1分钟场</div>
+    <div class="pair-main">
+      <div class="pair-left">
+        <div class="pair-coin" id="pairCoin">₿</div>
+        <div>
+          <div class="pair-name"><span id="pairName">BTC/USDT</span> <span class="pair-caret">▾</span></div>
+          <div class="pair-mode" id="pairMode">1分钟场</div>
+        </div>
+      </div>
+      <div class="pair-stats">
+        <div class="pair-stat"><span>24小时交易人数</span><b id="statBettors">—</b></div>
+        <div class="pair-stat"><span>累计已发放金额</span><b id="statPaidUsd">—</b></div>
       </div>
     </div>
-    <div class="pair-stats">
-      <div class="pair-stat"><span>24小时交易人数</span><b id="statBettors">—</b></div>
-      <div class="pair-stat"><span>累计已发放金额</span><b id="statPaidUsd">—</b></div>
+    <!-- round23：路引并入对局卡（竞品构图：同一张卡，上半交易对+统计，下半路引） -->
+    <div class="pair-road" id="roadCard">
+      <div class="road-head"><h2 data-i18n="road.title">🎲 路引</h2></div>
+      <div class="road-grid" id="roadGrid"><span class="road-empty" data-i18n="road.empty">暂无已结算局</span></div>
     </div>
   </section>
-  <!-- ===== 大倒计时（图表上方，一屏可见） ===== -->
-  <div class="big-cd" id="bigCd">
-    <span class="big-cd-label" data-i18n="cd.remain">本局剩余</span>
-    <span class="big-cd-time" id="bigCdTime">--:--</span>
-    <span class="big-cd-state" id="bigCdState"></span>
-    <span class="big-cd-next" id="bigCdNext"></span>
-    <i class="big-cd-bar" id="bigCdBar"></i>
-  </div>
   <div class="mkt-closed" id="mktClosed"></div>
-
-  <!-- ===== 路引 ===== -->
-  <section class="road-card" id="roadCard">
-    <div class="road-head"><h2 data-i18n="road.title">🎲 路引</h2><span class="road-legend"><span class="rdot long"></span> <span data-i18n="road.longWin">多胜</span>　<span class="rdot short"></span> <span data-i18n="road.shortWin">空胜</span>　<span class="rdot draw"></span> <span data-i18n="road.draw">平</span></span></div>
-    <div class="road-grid" id="roadGrid"><span class="road-empty" data-i18n="road.empty">暂无已结算局</span></div>
-  </section>
 
   <!-- ===== K 线图 ===== -->
   <section class="chart-card" id="chartCard">
@@ -691,8 +683,7 @@ html{scrollbar-gutter:stable}
       <span class="round-id" id="roundId">第 — 局</span>
       <span class="chart-legend"><span class="lg-up">■ <span data-i18n="chart.up">涨</span></span> <span class="lg-down">■ <span data-i18n="chart.down">跌</span></span> <span id="chartSrc">—</span></span></div>
     <div class="lock-price" style="display:none"><span data-i18n="price.lock">开始价</span> <b id="lockPrice">—</b>　·　<span data-i18n="price.cur">当前价</span> <b id="curPrice2">—</b>　·　<span data-i18n="price.chg">涨跌</span> <b id="chgNow">—</b></div>
-    <div class="status-bar" id="statusBar"><span class="sb-text" id="sbText">下注进行中… 请选择方向</span><span class="sb-price" id="sbPrice">—</span></div>
-    <div class="chart-wrap"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div><div class="chart-tools"><button id="ctLine" class="ctool sel" aria-label="分时线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,16 7,10 11,13 16,6 22,8"/></svg></button><button id="ctCandle" class="ctool" aria-label="K线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v2M7 15v2M17 6v2M17 17v2"/><rect x="4.5" y="6" width="5" height="9" rx="1"/><rect x="14.5" y="8" width="5" height="9" rx="1"/></svg></button></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div><div class="duo-fx" id="duoFx"><div class="duo-result" id="duoResult"></div><div class="fighter f-long" id="fLong"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#1ecb6e"/><path d="M40 25 L40 47" stroke="#1ecb6e" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看涨</div></div><div class="duo-vs">VS</div><div class="fighter f-short" id="fShort"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#f6465d"/><path d="M40 25 L40 47" stroke="#f6465d" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看跌</div></div></div><div class="si-panel" id="siPanel"><div class="si-panel-label">SI/USDT · <span data-i18n="price.cur">当前价</span></div><div class="si-panel-price" id="siPanelPrice">—</div><div class="si-panel-row"><span><span data-i18n="price.roundLock">本局开始价</span> <b id="siPanelLock">—</b></span><span class="si-panel-chg" id="siPanelChg">—</span></div></div></div>
+    <div class="chart-wrap"><div class="chart-chip" id="chartChip"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div></div><div class="chart-tools"><button id="ctLine" class="ctool sel" aria-label="分时线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,16 7,10 11,13 16,6 22,8"/></svg></button><button id="ctCandle" class="ctool" aria-label="K线"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 4v2M7 15v2M17 6v2M17 17v2"/><rect x="4.5" y="6" width="5" height="9" rx="1"/><rect x="14.5" y="8" width="5" height="9" rx="1"/></svg></button></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div><div class="duo-fx" id="duoFx"><div class="duo-result" id="duoResult"></div><div class="fighter f-long" id="fLong"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#1ecb6e"/><path d="M40 25 L40 47" stroke="#1ecb6e" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#1ecb6e" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看涨</div></div><div class="duo-vs">VS</div><div class="fighter f-short" id="fShort"><svg viewBox="0 0 80 80"><circle cx="40" cy="15" r="10" fill="#f6465d"/><path d="M40 25 L40 47" stroke="#f6465d" stroke-width="9" stroke-linecap="round"/><path d="M40 31 L23 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 31 L57 23" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><circle cx="21" cy="22" r="7" fill="#f5c542"/><circle cx="59" cy="22" r="7" fill="#f5c542"/><path d="M40 47 L29 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/><path d="M40 47 L51 65" stroke="#f6465d" stroke-width="7" stroke-linecap="round"/></svg><div class="f-name">看跌</div></div></div><div class="si-panel" id="siPanel"><div class="si-panel-label">SI/USDT · <span data-i18n="price.cur">当前价</span></div><div class="si-panel-price" id="siPanelPrice">—</div><div class="si-panel-row"><span><span data-i18n="price.roundLock">本局开始价</span> <b id="siPanelLock">—</b></span><span class="si-panel-chg" id="siPanelChg">—</span></div></div></div>
   </section>
 
   <!-- ===== 下注面板 ===== -->
@@ -1282,9 +1273,9 @@ let gen = 0, ws = null, pollTimer = null, retryTimer = null;
 function setSource(label, live, key) {
   S.sourceLabel = label;
   S.srcKey = key || null;
-  $("srcName").textContent = label;
+  const sn = $("srcName"); if (sn) sn.textContent = label;
   const cs = $("chartSrc"); if (cs) cs.textContent = label;
-  $("srcDot").classList.toggle("off", !live);
+  const sd = $("srcDot"); if (sd) sd.classList.toggle("off", !live);
 }
 function stopFeeds() {
   gen++;
@@ -1332,10 +1323,12 @@ function notePrice(p, _legacyFromSim, g, assetId) {
   S.price = p;
   sampleRoundBuf(p); // 本局采样缓冲（图表返工）：只采真实价（演示价路径已删，见 F3）
   const pel = $("price");
-  pel.textContent = fmtPrice(p);
-  if (S.prevPrice !== null && p !== S.prevPrice) {
-    const box = pel.parentElement;
-    if (box) { box.classList.remove("bump"); void box.offsetWidth; box.classList.add("bump"); }
+  if (pel) {
+    pel.textContent = fmtPrice(p);
+    if (S.prevPrice !== null && p !== S.prevPrice) {
+      const box = pel.parentElement;
+      if (box) { box.classList.remove("bump"); void box.offsetWidth; box.classList.add("bump"); }
+    }
   }
   S.prevPrice = p;
   intakeCandle(p);
@@ -1515,6 +1508,7 @@ function renderChg24(c) {
   if (!Number.isFinite(c)) return false;
   S.chg24 = c;
   const el = $("chg24");
+  if (!el) return true;
   el.textContent = (c >= 0 ? "▲ +" : "▼ ") + c.toFixed(2) + "% 24h";
   el.className = "chg " + (c >= 0 ? "up" : "down");
   return true;
@@ -1873,6 +1867,16 @@ function updateSiPanel() {
 }
 
 const ASSET_COIN = { 1: "₿", 2: "Ξ", 3: "◆", 4: "Au", 5: "Ag", 6: "N" };
+const ASSET_ICON = {
+  1: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\"><g fill=\"none\" fill-rule=\"evenodd\"><circle cx=\"16\" cy=\"16\" r=\"16\" fill=\"#F7931A\"/><path fill=\"#FFF\" fill-rule=\"nonzero\" d=\"M23.189 14.02c.314-2.096-1.283-3.223-3.465-3.975l.708-2.84-1.728-.43-.69 2.765c-.454-.114-.92-.22-1.385-.326l.695-2.783L15.596 6l-.708 2.839c-.376-.086-.746-.17-1.104-.26l.002-.009-2.384-.595-.46 1.846s1.283.294 1.256.312c.7.175.826.638.805 1.006l-.806 3.235c.048.012.11.03.18.057l-.183-.045-1.13 4.532c-.086.212-.303.531-.793.41.018.025-1.256-.313-1.256-.313l-.858 1.978 2.25.561c.418.105.828.215 1.231.318l-.715 2.872 1.727.43.708-2.84c.472.127.93.245 1.378.357l-.706 2.828 1.728.43.715-2.866c2.948.558 5.164.333 6.097-2.333.752-2.146-.037-3.385-1.588-4.192 1.13-.26 1.98-1.003 2.207-2.538zm-3.95 5.538c-.533 2.147-4.148.986-5.32.695l.95-3.805c1.172.293 4.929.872 4.37 3.11zm.535-5.569c-.487 1.953-3.495.96-4.47.717l.86-3.45c.975.243 4.118.696 3.61 2.733z\"/></g></svg>",
+  2: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\"><g fill=\"none\" fill-rule=\"evenodd\"><circle cx=\"16\" cy=\"16\" r=\"16\" fill=\"#627EEA\"/><g fill=\"#FFF\" fill-rule=\"nonzero\"><path fill-opacity=\".602\" d=\"M16.498 4v8.87l7.497 3.35z\"/><path d=\"M16.498 4L9 16.22l7.498-3.35z\"/><path fill-opacity=\".602\" d=\"M16.498 21.968v6.027L24 17.616z\"/><path d=\"M16.498 27.995v-6.028L9 17.616z\"/><path fill-opacity=\".2\" d=\"M16.498 20.573l7.497-4.353-7.497-3.348z\"/><path fill-opacity=\".602\" d=\"M9 16.22l7.498 4.353v-7.701z\"/></g></g></svg>",
+  3: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\"><g fill=\"none\"><circle cx=\"16\" cy=\"16\" r=\"16\" fill=\"#F3BA2F\"/><path fill=\"#FFF\" d=\"M12.116 14.404L16 10.52l3.886 3.886 2.26-2.26L16 6l-6.144 6.144 2.26 2.26zM6 16l2.26-2.26L10.52 16l-2.26 2.26L6 16zm6.116 1.596L16 21.48l3.886-3.886 2.26 2.259L16 26l-6.144-6.144-.003-.003 2.263-2.257zM21.48 16l2.26-2.26L26 16l-2.26 2.26L21.48 16zm-3.188-.002h.002V16L16 18.294l-2.291-2.29-.004-.004.004-.003.401-.402.195-.195L16 13.706l2.293 2.293z\"/></g></svg>",
+  4: "<img src=\"data:image/webp;base64,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\" alt=\"XAUT\">",
+  6: "<svg fill=\"#76B900\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>NVIDIA</title><path d=\"M8.948 8.798v-1.43a6.7 6.7 0 0 1 .424-.018c3.922-.124 6.493 3.374 6.493 3.374s-2.774 3.851-5.75 3.851c-.398 0-.787-.062-1.158-.185v-4.346c1.528.185 1.837.857 2.747 2.385l2.04-1.714s-1.492-1.952-4-1.952a6.016 6.016 0 0 0-.796.035m0-4.735v2.138l.424-.027c5.45-.185 9.01 4.47 9.01 4.47s-4.08 4.964-8.33 4.964c-.37 0-.733-.035-1.095-.097v1.325c.3.035.61.062.91.062 3.957 0 6.82-2.023 9.593-4.408.459.371 2.34 1.263 2.73 1.652-2.633 2.208-8.772 3.984-12.253 3.984-.335 0-.653-.018-.971-.053v1.864H24V4.063zm0 10.326v1.131c-3.657-.654-4.673-4.46-4.673-4.46s1.758-1.944 4.673-2.262v1.237H8.94c-1.528-.186-2.73 1.245-2.73 1.245s.68 2.412 2.739 3.11M2.456 10.9s2.164-3.197 6.5-3.533V6.201C4.153 6.59 0 10.653 0 10.653s2.35 6.802 8.948 7.42v-1.237c-4.84-.6-6.492-5.936-6.492-5.936z\"/></svg>",
+};
+/* 官方图标来源（round23）：BTC/ETH/BNB = spothq/cryptocurrency-icons 官方彩色 glyph；
+   XAU 行 = Tether Gold (XAUT) 官方 token logo（TrustWallet 资产库，合约 0x68749665FF8D2d112Fa859AA293F07A622782F38，内嵌 webp）；
+   NVDA = Simple Icons 收录的 NVIDIA 官方品牌 glyph（品牌绿 #76B900）；XAG 白银为商品无品牌官方图标，未替换、未自绘。 */
 /* 场次文案统一出口（round18）：走 i18n pair.m1/m3/m5，英文模式不再硬编码中文。
    顶栏 Logo 旁徽标（arenaTag）与对局卡场次共用此文案、共用 syncArenaTag 同步。
    注意：页面里已有 modeName(n) 是「数字模式→模式名」的另一个函数，不可同名，故名 modeLabel。 */
@@ -1880,7 +1884,12 @@ function modeLabel(m) { return t(m === "speed" ? "pair.m1" : m === "mid" ? "pair
 function syncArenaTag() { const at = $("arenaTag"); if (at) at.textContent = modeLabel(S.mode); }
 function renderPairCard() {
   const meta = ASSETS_META[S.assetId];
-  const c = $("pairCoin"); if (c) c.textContent = ASSET_COIN[S.assetId] || "◆";
+  const c = $("pairCoin");
+  if (c) {
+    const ic = ASSET_ICON[S.assetId];
+    if (ic) { c.innerHTML = ic; c.classList.add("has-logo"); }
+    else { c.textContent = ASSET_COIN[S.assetId] || "◆"; c.classList.remove("has-logo"); }
+  }
   const n = $("pairName"); if (n) n.textContent = meta ? meta.pair : "—";
   const m = $("pairMode"); if (m) m.textContent = modeLabel(S.mode);
   syncArenaTag(); // round18 缺陷3：徽标跟 S.mode 同步，不再只靠 setMode 尾段那一行（中途抛错就永远不更新）
@@ -1937,10 +1946,8 @@ function updateBigCd(remain, total, phase, nextText) {
   $("bigCdNext").textContent = nextText || "";
 }
 function updateStatusBar() {
-  const txt = $("sbText"), pr = $("sbPrice"); if (!txt || !pr) return;
-  txt.textContent = S.phase === "betting" ? t("status.betting") : t("status.settling");
-  pr.textContent = S.price ? fmtPriceFor(S.price) : "—";
-  const bar = $("statusBar"); if (bar) bar.classList.toggle("settling", S.phase !== "betting");
+  /* round23：独立状态条已删。竞品口径——阶段表达只靠图表左上角的片（开始预测+三段进度条）
+     与线头倒计时气泡，本函数不再往任何地方写阶段文案，保留空壳供 400ms 同步调用。 */
 }
 function showNvdaClosed() {
   const el = $("mktClosed");
@@ -2148,7 +2155,7 @@ function tickRound() {
     // 本地演示分支——旧 bug 正是演示分支拿 floor(now/60) 当局号，全屏闪出
     // 「第 29926721 局」的假局号（图表返工·缺陷 5）。
     $("roundId").textContent = roundTitle("—");
-    const csW = $("chartState"); if (csW) csW.textContent = t("state.waiting");
+    const csW = $("chartState"); if (csW) csW.textContent = t("state.betting");
     if (!tickRound._lastTry || Date.now() - tickRound._lastTry > 3000) { tickRound._lastTry = Date.now(); discoverRound(); }
     return;
   }
@@ -2212,7 +2219,7 @@ function tickRound() {
   $("lockSub").textContent = bettingOpen
     ? t("cd.lockAt", { time: new Date(r.lockAt * 1000).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false }) })
     : t("cd.settling");
-  const csEl = $("chartState"); if (csEl) csEl.textContent = phase === "betting" ? t("state.betting") : t("state.waiting");
+  const csEl = $("chartState"); if (csEl) csEl.textContent = t("state.betting");
   updateBigCd(Math.max(0, r.end - r.nowSec), Math.max(1, r.end - r.start), phase,
     phase === "locked" ? t("cd.nextRound", { time: fmtClock(r.end), sec: Math.max(0, r.end - r.nowSec) }) : "");
   updateBetBtn();
@@ -2313,7 +2320,7 @@ function tickChainRound() {
     ? t("cd.lockAt", { time: new Date(r.lockTime * 1000).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false }) })
     : t("cd.settling");
   if (nowSec > r.closeTime + 2) discoverRound();
-  const csEl2 = $("chartState"); if (csEl2) csEl2.textContent = phase === "betting" ? t("state.betting") : phase === "prestart" ? t("phase.prestart") : t("state.waiting");
+  const csEl2 = $("chartState"); if (csEl2) csEl2.textContent = t("state.betting");
   updateBigCd(prestart ? Math.max(0, r.startTime - nowSec) : Math.max(0, r.closeTime - nowSec), Math.max(1, r.lockTime - r.startTime), phase,
     prestart ? "" : nextChainRound ? t("cd.nextRound", { time: fmtClock(nextChainRound.startTime), sec: Math.max(0, nextChainRound.startTime - nowSec) })
       : (phase === "locked" ? t("cd.nextCreating") : ""));
@@ -2403,7 +2410,7 @@ function settlePrevRound(prevId, roundData) {
   renderStats();
   refreshTopStats();
   if (window.__bgBurst) window.__bgBurst(rec.result);
-  const csS = $("chartState"); if (csS) csS.textContent = t("state.settling");
+  const csS = $("chartState"); if (csS) csS.textContent = t("state.betting");
   drawKline();
   renderRecords();
 }
@@ -4438,11 +4445,11 @@ function renderRoad() {
   for (const r of rs) {
     if (r.result === "draw") {
       if (!cur) { cur = []; cols.push(cur); curRes = null; }
-      if (cur.length >= 2) { cur = []; cols.push(cur); }
+      if (cur.length >= 3) { cur = []; cols.push(cur); }
       cur.push(r);
       continue;
     }
-    if (!cur || curRes !== r.result || cur.length >= 2) { cur = []; cols.push(cur); curRes = r.result; }
+    if (!cur || curRes !== r.result || cur.length >= 3) { cur = []; cols.push(cur); curRes = r.result; }
     cur.push(r);
   }
   let html = "";
@@ -4451,7 +4458,7 @@ function renderRoad() {
       const isNew = ci === cols.length - 1 && ri === col.length - 1;
       html += '<span class="rdot ' + r.result + (isNew ? " new" : "") + '"></span>';
     });
-    for (let k = col.length; k < 2; k++) html += '<span class="rdot empty"></span>';
+    for (let k = col.length; k < 3; k++) html += '<span class="rdot empty"></span>';
   });
   g.innerHTML = html;
   g.scrollLeft = g.scrollWidth;
@@ -4731,7 +4738,6 @@ function init() {
     const cc = $("chartCard");
     if (cc && cc.parentNode) {
       const sb = $("statsBar"); if (sb) cc.parentNode.insertBefore(sb, cc);
-      const rc = $("roadCard"); if (rc) cc.parentNode.insertBefore(rc, cc);
     }
     const wg = document.querySelector(".wallet-grid");
     if (wg && wg.closest(".card")) wg.closest(".card").id = "walletCard";
@@ -4836,12 +4842,12 @@ setTimeout(function () {
       <button data-pmode="classic" data-i18n="pair.m5">5分钟场</button>
     </div>
     <div id="pairList">
-      <button class="pair-row" data-asset="1"><span class="pair-coin">&#8383;</span><span class="pair-row-name">BTC/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
-      <button class="pair-row" data-asset="2"><span class="pair-coin">&#926;</span><span class="pair-row-name">ETH/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
-      <button class="pair-row" data-asset="3"><span class="pair-coin">&#9670;</span><span class="pair-row-name">BNB/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
-      <button class="pair-row" data-asset="4"><span class="pair-coin">Au</span><span class="pair-row-name">XAU/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
+      <button class="pair-row" data-asset="1"><span class="pair-coin has-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#F7931A"/><path fill="#FFF" fill-rule="nonzero" d="M23.189 14.02c.314-2.096-1.283-3.223-3.465-3.975l.708-2.84-1.728-.43-.69 2.765c-.454-.114-.92-.22-1.385-.326l.695-2.783L15.596 6l-.708 2.839c-.376-.086-.746-.17-1.104-.26l.002-.009-2.384-.595-.46 1.846s1.283.294 1.256.312c.7.175.826.638.805 1.006l-.806 3.235c.048.012.11.03.18.057l-.183-.045-1.13 4.532c-.086.212-.303.531-.793.41.018.025-1.256-.313-1.256-.313l-.858 1.978 2.25.561c.418.105.828.215 1.231.318l-.715 2.872 1.727.43.708-2.84c.472.127.93.245 1.378.357l-.706 2.828 1.728.43.715-2.866c2.948.558 5.164.333 6.097-2.333.752-2.146-.037-3.385-1.588-4.192 1.13-.26 1.98-1.003 2.207-2.538zm-3.95 5.538c-.533 2.147-4.148.986-5.32.695l.95-3.805c1.172.293 4.929.872 4.37 3.11zm.535-5.569c-.487 1.953-3.495.96-4.47.717l.86-3.45c.975.243 4.118.696 3.61 2.733z"/></g></svg></span><span class="pair-row-name">BTC/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
+      <button class="pair-row" data-asset="2"><span class="pair-coin has-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#627EEA"/><g fill="#FFF" fill-rule="nonzero"><path fill-opacity=".602" d="M16.498 4v8.87l7.497 3.35z"/><path d="M16.498 4L9 16.22l7.498-3.35z"/><path fill-opacity=".602" d="M16.498 21.968v6.027L24 17.616z"/><path d="M16.498 27.995v-6.028L9 17.616z"/><path fill-opacity=".2" d="M16.498 20.573l7.497-4.353-7.497-3.348z"/><path fill-opacity=".602" d="M9 16.22l7.498 4.353v-7.701z"/></g></g></svg></span><span class="pair-row-name">ETH/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
+      <button class="pair-row" data-asset="3"><span class="pair-coin has-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none"><circle cx="16" cy="16" r="16" fill="#F3BA2F"/><path fill="#FFF" d="M12.116 14.404L16 10.52l3.886 3.886 2.26-2.26L16 6l-6.144 6.144 2.26 2.26zM6 16l2.26-2.26L10.52 16l-2.26 2.26L6 16zm6.116 1.596L16 21.48l3.886-3.886 2.26 2.259L16 26l-6.144-6.144-.003-.003 2.263-2.257zM21.48 16l2.26-2.26L26 16l-2.26 2.26L21.48 16zm-3.188-.002h.002V16L16 18.294l-2.291-2.29-.004-.004.004-.003.401-.402.195-.195L16 13.706l2.293 2.293z"/></g></svg></span><span class="pair-row-name">BNB/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
+      <button class="pair-row" data-asset="4"><span class="pair-coin has-logo"><img src="data:image/webp;base64,UklGRhYUAABXRUJQVlA4WAoAAAAQAAAAXwAAXwAAQUxQSIMKAAABGbNp2+aStptoRP8D589yBAJJ+3PvEBGpybJt27SdMdaNbdu2bRYipU8Jnt+7Z83gOV/5i5iACcD8//85SZJe729EZJba7t5pjW2c5762bds47j8wtm3btnratrsLGfh9P69DILO6RseImADiv6Pin4rHT9poES0SS0WzK1dlhas6xz+eeQICEA2Axtoq1QJEJCIOKOCSJQqXfe94KQ754aF5QkMbAxAxoJZKq4NaFS0VqE6h1hrb5a9+IB4fPHfdlIEQgwgEWsAqQGoQBXqhqQ5QVkGplqAXPOorHFe1vT7YYlJBABIUpaG1JoY0qCKV0ISQLmUgSVqzLPc/9dCReByAp+6YNyIMNBLRpKagIYBh2SCkDAJECKKxYLjk4d/iOCp2+mSraSUESAiEIAkIoIQOERNR1iZlTKvUvqe/YSfuGXDfPfMEAWgRgBqCVS0rbLIyEACXykTIiN4vffh3OY7bfbbdjAIAAiC0CKARioy6kEAQIFFaQQmJgHrgKW9e7JnilnvGACAUgNQCilCkASWQglaioCSyWsPKevjFV8a9Ebb44JBZI/EX/g4AIhGgVkgJEGKBLI2qqwUo/eSnvGvGHsd1T41JrUEQAAlABEQaxXICBiNN2wAgzaFYCvio86+LexIbvHXUHKEACiCgUGlSA5HWMZJRBUoSWWmhLCtmOOUJ7+/speKyNwZAaGSsAVAMhCih0aCmpwhV0AUkLgHRJVIATzj3lrgHKJ+dMAsRoTIASgwCCDQFgepBLLtohBqwBLSllUtIhlOf/AH2UHHOC5JC0VAQgThgl6ZoQFgSQKqztorVOXL5NAEkCHnsubfFXaF8dN4cQYoAogHloGOasNwsgWyYVeae91ZLitASMpz9+I/Jbks75YNNAASkgNAQBVqWriLrdA0dCMsCIY878664i9BrF83aoI0JpWHRCCw/7D6sDsuuIJIM5z76s+xSccwXG8xQKQMULSKs5PgGNBGBGMdPPPX+uBHw0hVzpBgprSECEKB1BARBFSLDBY//HBsrDvpkk1lqDRppIQ2wzk1IWBkEx487+cG4CZ67bQGAwN+SYp1FIZIEhDCc//BvsKHaXp9sN62ESkMLBEYGDUBELC8buZEKYAQxSGr/kw4ejWuAx+6bI/wdAIQWEKSC1c9GjVGQBMQAkuHiS77LWsUu3+02qQSAQBlArakEZkyIRQJ0yUmjDQ7vtE1s9/VEpVhvbT/57TtxBXDHAwsEYRCKFlBTAOUnAAEKdIH7n3bIrLn86rEooJo+RVbHFWnDhRddzspk6/9ftN0b1avEYCugz6c70x0trVCzYsP5dCQMon2+6G4DSJDVoQ6dcuWwovmcj/70dKwFiBb2UAaaaa3aKFmwcUYZychqtIQmiAiu0Abn3HdHljL5v1ee3MdVYi0Ru5bdomOBFtkIcZlCEQkIgktJtX7o4NUFNJ78gV+ZtlRXiCp2sRdlBUiD3STVehKWg40URIWwsnLeXXeHZPSfbz1jSFUJVJG0GpYANK0PwjBs1GcjIkk0AEqEaIhAM8OpB67u4OM+8LvHUuXQgaGU3gss7PPebaOtyaixf0zWnXvpYlHDfLqwitgwEoAQI2DkvDvuDfz9O8+dIQwuIakULuadrVPOG48n42ZlaCM23HfutpZD7RzW+XxwFHAJZRV4yv6r8OHv/YtpWTIAfQj2crHo4zMvesSjLjlrZzbMp4uy738mZs3NV2+lRtvbW5PTzj7zzG3nD87aaE2SWjM659b7+bMPXDQjBb2FgVTJwOmPeMxF+4/ddtVlQ2lIFl02tE9d7o7un01OftjDzq57H2xLBlkWqNNy/UVv+5dpxKRCdaogJz32cQdu//7l19/14HwUekESNk7SItWrH7v3vrt2Tnvio/pNO4Fo1sXxObf87Hseu9O6SNcuAc9+5oXXf+26w47GLarsXgJCmbRRG47edsvFzz141dE0DevIcPr+5/5N00rKDiLW9pMffsvXj04aaIc9IS2iiQitjR44/PBL+jUxsomOT3vpJFWClmpRfd8jDxw9PKpFQe+QuCIbEVampaX38vxHO9y7k2Iztm7/5nvvoavQCywj7G9snXHalov5AmghJAyDCYgWgCQMVrX95z7y4cy/f+fpgGad49s/t2jMhyRxkLK0l7Vz75HJ2Rdd8lNnnbxvPvTCRj/2vW2TXgXDXS56VDM5eOo5F1149nh27WV3nb2FNiSrJrd8iijDVLGjUQxw9NYbb50eOvfSxz1+58i0z6dTarivhqIEaAfDZHuyfeDAyWefdlJ2brrm2jtz+qggEFxy68bPEDUM024vTZV0SxgevPO6K6+6/ZinZdTsvQ/z6h0M0Caj8dZolNRicezuG2+8/p5FO7itVBApoCbXfYbIynkXCrpUT0k5mrhz901Xfnd7Mtk6MBmNsv9gWD+dzoaaT48dPXr47gdmjibjMWVAYwCdXPkFImtrih1KylZYHXAU56XV0kYeePIh1112bQ1Vi65kMnZEYYSAJAXj73+RyFqZzRV6WWVHxep0aNCrFiwOFmTN0cPjLm1CB1WAJegJyOg7XyWycR0brC6gWFVaSsUiJG3Epm087l0pUYMxIEGgMvrG14nscr4YVFRDFxwUweXgRqitsxwBg0ZYMnz120R2GRZHjVa34sAKUKME2dNEEhCFBKK0L36byK6lZkNVmaKGhN6DCM1i14qCggYQICKtPnc5kT0dZmUBOEh1Q0zrrHQzZK0CcYWR0fCpq4jscZ/3rOhJlUoHNNKyC0irpdUai+B49snriOy5U9HqRaqrDimTYrdBAIlrSAQns4/eSGTPk1rMXZkuJZYge6osR0QQqK0jH76DyHGUmi8ERaqA0QKluQdgAJYQito+/JG7iRxnp0V1oXfAREklu0kVgcQAKNTWfR9+gMhxz3yK4FAuQxrI5gkrUzaWE2r77g8eSeQh4NDF6glAKwTIRkCWwFQD0K1bPzyLPCRlNpUStKIawl6nkZCIAw9ZYTYwKFUQiOzaBKKwZNKGzkO7DwaqUgLZHTLqQGhpozRc8FBfTAd7F8Ag7mbzFhbFQ386o8pKSyCavUg6LbT0gROxFgWqrNU1rpHYkgwDJ2KYz4wsGzRpa5IVShski4ETU4ap9rC6psfMKhZZAZXmojhRw7CoVokh7ehXAgjosQYlQFoNnLjSpz/bBhFapkoXFVNphBrVojiRQ/+dn2uLAGRsZ1xSpmTZ0fDh4kR/9a/+3GRoIMrKYArF0fyD7+NEd+f1v/ir20OMAAEUIjiavedDixOOzN/2ml87sBiJxepIoMY77/j4kBPPzN/1mt88aRF2W+PD7/jEEE88zPD+l//26bNks5o8+JZPFfKD0PSPvOT3z5yN4prgvvte/3kjPxjFT7/oD86bB3SJ2rrjdV9GfnCaL7zojy+YgRGoya2v/kbkB6n56vP+5KIpEqmtG1/xvcgPVvPtF/zBw2eEsHXdqy6L/KC1fe95f/y4Kbh92cuvbcUP3mrXvuhPHjdj8r2XXd+KH8SV65//+8/gq6+4OcUPZtvNL/ljXnpbK35QV25/Pvek+MFt7iHyg9wgP9jlJ84AVlA4IGwJAAAQLACdASpgAGAAPjEUiEKiISEVWq6oIAMEtgBBzSKPcPNZq/9O/AHK2HL61/2f9u/Iz4N+oDzB/0x84z1I/0z0Afy/+zfsP7x39m/Zn3I/2n1AP1V///YD/uB7CP8f/z/pk/tf8Gv7c/tB8BP8y/rn/b/P///94B6AHkT9Nv6J+JPh/8sHVszBCYcxX3JOwifLf9Jx6fLp6If+t4+2Ov/H+nX/j+Zv8r/xf/V9wj+O/zv/T/2393v8l8x3sN/bH2Gf0iRnHSxnunKm9TdmfsrjVjrt7ZzObobjNotJO2po2Ja41ZB65L0LUc3+bxHubjNrDrslxPR2CRuu9veGbNm4DeJpKjhvKaF7wd4wEphDnCD7vt5LUibeyMk455g9cBi4J1VvO4WhrfLN4aW3dcTi33DpTvAkOKYlh20Kbjz4LPnDhmonB4UZKwxWVFO6tBPsmimh9P8JfYG500DC5Zx064D9GWtykoaAAP79B2d4CJ59NZrp//kMvsGyx7eBzc+We+jiJTYlrWC2HOv4NFsxyxvM9fbnqY5GkBxwFf7AQyraazJpJr+u433cPmlProB7SlcBIby9LpJX1ofDBKLMvOYV29N6QMDqWNFCuv1lJFxuwrY5ZaiF4H84mF8TCfuqCillTZpL/JayMk1W2+p8gKeD3G5IzsCLjb50BJkBzoDyTX8CCUhzDWB0vI4HKrDdJvhpLyZudIpq9Dn+mdiLvDsRkkwWcVPHAXJwiGyOfoVsrPPifJhjZqeEpSnAHtYlHpadislfIiaPPxqEY6dopHR1tCB3w2IpHnGHVyCLopTtFQvgT6bxEhQ46Blb/ZbBquK2D6vqSZwm7exQ0sl/IiCS7VyUB4+s568jWEFVamFzH+NbMpQheRsK7nKHEwyQ2EIskiu+I156ZL89biY3JAKdovkRB8jdsNX25hDR1o5U+7+3iFF2zx5Rl1L0xGndgx4Q9C596ckNh2RZQUgm5Uc5hFD1ct6zo8wJ77JdgMYD4eN3ja5o8v4Mrvr0u6mzJ/zeZRR6ebVmN8xWru91ZFbBqL+w3dZhXbud+OmXvQI5o8P/4CAuRum3uSP/kExpDTO2FqH3ACMBfDcMFmk4EuUEnp4075MqsSS/7c9HdD/Ay+JeoBF5Geb0Wn7DmyCF5QBZlhY/TYGHsASbGnZvcMUe6iCHNhNhlsPMdol4lq0Kw6AbuY88sdd1c5KipEzo044go9iBgpk7Tk0UAmE7osLH7nXqDmmT1VuwSnfktCz8rJSFHER3oK9KT8i7OL/fm0bvvTmWVdQE2FhQPGR59zlVPGBAONPzN9IsGehE3fmYH1MNyh3zfrUSfD9vo45ndoVsQ8wfOxyMNDXxul6F3c8QZ0XE4lY+J/U/a7+cBqdRHpC0bCXfzj1wVTUDrP+0/6c0pki6VgSOn8TbCYdXIyPYxJ4wvJYIqtS5f+U80Hrt9kxxHEYYqgV2zu0hNcGDHl1l91A2v6TP3iNCW/Ttu2z822KZpDyAz0OvxWvvNyRttadi6+lsj5rDZXXMl/SRRC9ol/aW7RAsUpkeJfunnL5GfvBNI7xnfvjEQb3jG0rMOgCGfPEoH321uNMNvgTVOEg5fzdgrgYwgCFh8KDM0EV43RTdsCLd0+kD7LnFo7IJhBiDv4IIR2yminRRGWxD4JiPO3BGKul7KcZxIvkfaPE3u2TX4f9wYVLVAFwaDoqw5C2fP8VfDBoLYxr/sfBrUwnHqnrhx45eGz/22+1wqvijb1JytR7Q4vKCSQhWbv6osWoBc5kALUTOGgAV80VnJUJwYHA4Nntd39q5CJ9cyUbucD84RMa/PA6qt6cHIsPz97wu/Ar7/JuCk4yHW8iAwm1YoF+LoOeKGU3g55NFfQ2/asCUOwIHQBbaHEn91itZI4t+imEOEwvy/SqCGrH0OSXsSNAsCSA+xJTNV4a7PlSQB2Qui3A+bXSGI+lYQ32c8IUegfoOOZgUTShgH/T49dIPOTUyINaTe/6IkAW0FB1X6fEOU0jHU8A0dUNjilv+bZ6CgqLm/LtEFGelZd6o5ic+FD36L4l+T2laTiKaJumHD6/EwgB23YyVLSd7fus65S+2Pvg1aujvcJmT4mAl8Jza9T2VwHCOpM52XAID3vF8LwbeSg6F5YrIeahLzhYylJ0hNgFiiO0d+q4+kuPKH7fFmB8sx2TgIV/7A/SGk1TY02kzQTse6v/VJ0hqS3tZBovBDD79RnzyjfTenJMPTBYdiOJTdUoJSC7kXprmAAdZ6dZ/oPA4zg6l/qys0zceTZA1reH22yYCo6XAJOmwaLrlnLy1AYe1V77GW0bK3tHxULsrV0YVIIgxr7Ac7eictVLicgmpet5th8rX89zTsHKRn/xFgV9HHeZfZcAPXjYksO4tkSfm3w+6jex1kT0Gk/ZZ/ZPvxsGtFHBone55rqnVtJNT/rHaN/ktTX92IhXnB31Qkil1W0KfiRx5v/5OUGl34mlA+Hxhog49hXp0sepPrtnrmYCEV6u+cGxA5va925zJkPChUYKKfY7Db4H8GvazL/486DR15uCKpYbfe4fdU4QeJrKoIqm+Jp8xKNXX5Yh+PWe+AuDvpv8G8WCbHqQeEmlDhz1G4v2OE0LC7b00sr/YD898jr4TZg+qmQbqOKXa2zVIEhbF7Nx77cntqmEbc/KvWVD2zW7NvhpvU8naxFg5gPbRPKAmAv25Y/gvi1fDtdnjdGF1i1wFYq9l/QoZRjuCrnIBWO4DQMMUNkCjQi5s5ibJqw1hDEEbFb0UbHfgHIc/Q5R4BTPCp5N3Pb+uefIsUrfx/phSXP+mSLgEjdjGuDXv0Bb1NAck8wp6Kzzs22HrTvfORxAFYyW/YQ6ScpkgHWSNjyvMHQ0tETOTGwjOb/9InVv4QC2yz2J8xpTFB0bjWZusU9J+sRjh5mAiZOzh4hR49J8fhVIzRjZ9iCxXviraF//uWEAAAKnQxKT0eGG4L41S5EGLiwjk/ij3XGnsR2hb23l+VtaIw670vGacQkBRuK7y9NfWmej8YCl6FnRb1/wFFmRR/C7jwGOTAhHy9qiHKjEI16Vxwr5rUL+dSNHA57tcs8H2MobLX+VF3+c5gGaWpLKR9RAbJOXhJh5MOZ2WwZJH/+ViZjns7MIi4+25iOS3b+7QL3uWj+M5xOdB1cOVjeQEnNEGN8ykfnDS/0Z2Vv2H1yOObt/44sBR7AAAAAA=" alt="XAUT"></span><span class="pair-row-name">XAU/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
       <button class="pair-row" data-asset="5"><span class="pair-coin">Ag</span><span class="pair-row-name">XAG/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
-      <button class="pair-row" data-asset="6"><span class="pair-coin">N</span><span class="pair-row-name">NVDA/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
+      <button class="pair-row" data-asset="6"><span class="pair-coin has-logo"><svg fill="#76B900" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>NVIDIA</title><path d="M8.948 8.798v-1.43a6.7 6.7 0 0 1 .424-.018c3.922-.124 6.493 3.374 6.493 3.374s-2.774 3.851-5.75 3.851c-.398 0-.787-.062-1.158-.185v-4.346c1.528.185 1.837.857 2.747 2.385l2.04-1.714s-1.492-1.952-4-1.952a6.016 6.016 0 0 0-.796.035m0-4.735v2.138l.424-.027c5.45-.185 9.01 4.47 9.01 4.47s-4.08 4.964-8.33 4.964c-.37 0-.733-.035-1.095-.097v1.325c.3.035.61.062.91.062 3.957 0 6.82-2.023 9.593-4.408.459.371 2.34 1.263 2.73 1.652-2.633 2.208-8.772 3.984-12.253 3.984-.335 0-.653-.018-.971-.053v1.864H24V4.063zm0 10.326v1.131c-3.657-.654-4.673-4.46-4.673-4.46s1.758-1.944 4.673-2.262v1.237H8.94c-1.528-.186-2.73 1.245-2.73 1.245s.68 2.412 2.739 3.11M2.456 10.9s2.164-3.197 6.5-3.533V6.201C4.153 6.59 0 10.653 0 10.653s2.35 6.802 8.948 7.42v-1.237c-4.84-.6-6.492-5.936-6.492-5.936z"/></svg></span><span class="pair-row-name">NVDA/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
     </div>
     <button class="sheet-close" id="pairSheetClose" data-i18n="mode.close">关闭</button>
   </div>
