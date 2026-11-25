@@ -485,6 +485,53 @@ body.no-fx .src-dot{animation:none!important}
   .ceremony .cflag,.ceremony .cword{animation-duration:.01s!important;animation-iteration-count:1!important}
 }
 html{scrollbar-gutter:stable}
+/* ===== 一屏布局（2026-11-25 返工）：顶栏瘦身、首屏不滚动直接下单 =====
+   移动端首屏栈（390×844 预算）：顶栏 46 → 品类条 34 → 倒计时条 40 → 路引 62
+   → 图表 flex（约 412）→ 下单区 196 → 底部导航 54，合计 844，图表吃掉余量。
+   统计已挪进钱包卡（.wallet-stats-line），音乐/特效开关已挪进玩法菜单
+   （.sheet-settings），下单区内重复的倒计时块在移动端隐藏（顶部倒计时条已覆盖）。 */
+.bet-info{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);padding:6px 2px 0}
+.bet-info b{color:var(--text);font-weight:700}
+.sheet-settings{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.sheet-settings .ss-label{font-size:12px;color:var(--muted);margin-right:2px}
+.sheet-settings .vol{width:70px}
+.wallet-stats-line{margin:2px 0 10px;font-size:12px;color:var(--muted)}
+.wallet-stats-line b{color:var(--gold)}
+@media (max-width: 959px){
+  .topbar{padding:6px 10px}
+  .topbar-in{flex-wrap:nowrap;gap:8px;max-width:none}
+  .logo{gap:7px}
+  .logo-mark img{width:28px;height:28px}
+  .logo-name{font-size:15px;white-space:nowrap}
+  .logo-sub{display:none}
+  .price-box .price{font-size:14px;white-space:nowrap}
+  .price-box .src-badge{display:none}
+  .top-controls{margin-left:auto;display:flex;gap:6px}
+  .btn-connect{padding:7px 10px;font-size:12px;white-space:nowrap}
+  #stageCol{display:flex;flex-direction:column;height:calc(100dvh - 46px - 54px);overflow:hidden}
+  .asset-bar{flex:0 0 auto;padding:4px 2px}
+  .asset-chip{padding:5px 10px;font-size:12px}
+  .big-cd{flex:0 0 auto;margin-bottom:6px;padding:6px 12px}
+  .road-card{flex:0 0 auto;margin-top:0;padding:6px 10px 8px}
+  .road-head{margin:0}
+  .road-head h2{font-size:12px}
+  .road-grid{grid-template-rows:repeat(2,22px) !important;grid-auto-columns:22px !important;gap:4px !important;margin-top:4px !important}
+  .road-grid .rdot{width:22px !important;height:22px !important}
+  #chartCard{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin-top:6px}
+  .chart-wrap{flex:1 1 auto;min-height:0}
+  #kline{height:100% !important}
+  .bet-panel{flex:0 0 auto;margin-top:8px;padding:10px 12px}
+  .bet-panel .countdown{display:none}
+  .bet-panel .gas-note{display:none}
+  .payout-line{font-size:11px;margin:2px 0 6px}
+  .amount-row label{font-size:11px}
+  .amount-input input{height:38px}
+  .chips{gap:6px;margin-top:6px}
+  .chip{padding:5px 8px;font-size:11px}
+  .side-pick{gap:10px;margin-top:8px}
+  .side-btn{padding:13px 8px;font-size:16px}
+  #betErr{max-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -520,11 +567,7 @@ html{scrollbar-gutter:stable}
     </div>
     <div class="top-controls">
       <button class="mini-btn" id="langBtn" title="切换语言 / Switch language">EN</button>
-      <button class="mini-btn" id="bgmBtn" title="音乐开关 / Music">🔊</button>
-      <input type="range" id="bgmVol" class="vol" min="0" max="100" value="80" aria-label="音量 / Volume">
-      <button class="mini-btn" id="fxBtn" title="特效开关 / Effects">✨ 特效</button>
     </div>
-    <div class="hdr-stats"><span data-i18n="stats.hdrRounds">已结算局数</span> <b id="statRounds">—</b><br><span data-i18n="stats.pool">累计派奖</span> <b id="statPool">0 $SI</b></div>
     <button class="btn-connect" id="connectBtn" data-i18n="top.connect">连接钱包</button>
   </div></header>
 
@@ -535,7 +578,7 @@ html{scrollbar-gutter:stable}
   </div>
 
   <div class="cols">
-  <div>
+  <div id="stageCol">
   <!-- ===== 数据条 ===== -->
   <section class="stats-bar" id="statsBar" style="display:none">
     <div class="stat"><div class="stat-v" id="statRoundsOld">—</div><div class="stat-k" data-i18n="stats.rounds">已结算局数</div></div>
@@ -562,6 +605,12 @@ html{scrollbar-gutter:stable}
   </div>
   <div class="mkt-closed" id="mktClosed"></div>
 
+  <!-- ===== 路引 ===== -->
+  <section class="road-card" id="roadCard">
+    <div class="road-head"><h2 data-i18n="road.title">🎲 路引</h2><span class="road-legend"><span class="rdot long"></span> <span data-i18n="road.longWin">多胜</span>　<span class="rdot short"></span> <span data-i18n="road.shortWin">空胜</span>　<span class="rdot draw"></span> <span data-i18n="road.draw">平</span></span></div>
+    <div class="road-grid" id="roadGrid"><span class="road-empty" data-i18n="road.empty">暂无已结算局</span></div>
+  </section>
+
   <!-- ===== K 线图 ===== -->
   <section class="chart-card" id="chartCard">
     <div class="chart-head" style="display:none"><h2 data-i18n="chart.title">📈 BTC/USDT · 1 分钟 K 线</h2>
@@ -570,12 +619,6 @@ html{scrollbar-gutter:stable}
       <span class="chart-legend"><span class="lg-up">■ <span data-i18n="chart.up">涨</span></span> <span class="lg-down">■ <span data-i18n="chart.down">跌</span></span> <span id="chartSrc">—</span></span></div>
     <div class="lock-price" style="display:none"><span data-i18n="price.lock">开始价</span> <b id="lockPrice">—</b>　·　<span data-i18n="price.cur">当前价</span> <b id="curPrice2">—</b>　·　<span data-i18n="price.chg">涨跌</span> <b id="chgNow">—</b></div>
     <div class="chart-wrap"><div class="chart-state" id="chartState">开始预测</div><div class="cs-segs" id="csSegs"><i></i><i></i><i></i></div><canvas id="kline" height="190"></canvas><div class="chart-empty" id="chartEmpty" data-i18n="chart.waiting">等待行情…</div><div class="cd321" id="cd321"><div class="cd321-num" id="cd321Num">3</div><div class="cd321-sub" data-i18n="win.settling">即将进行结算</div></div></div>
-  </section>
-
-  <!-- ===== 路引 ===== -->
-  <section class="road-card" id="roadCard">
-    <div class="road-head"><h2 data-i18n="road.title">🎲 路引</h2><span class="road-legend"><span class="rdot long"></span> <span data-i18n="road.longWin">多胜</span>　<span class="rdot short"></span> <span data-i18n="road.shortWin">空胜</span>　<span class="rdot draw"></span> <span data-i18n="road.draw">平</span></span></div>
-    <div class="road-grid" id="roadGrid"><span class="road-empty" data-i18n="road.empty">暂无已结算局</span></div>
   </section>
 
   <!-- ===== 下注面板 ===== -->
@@ -590,6 +633,7 @@ html{scrollbar-gutter:stable}
       </button>
     </div>
     <div class="payout-line" id="payoutLine">—</div>
+    <div class="bet-info"><span>可用余额 <b id="siBalanceMini">—</b> $SI</span><span>本局已下 <b id="myRoundBetMini">0</b> $SI</span><span id="oddsMini"></span></div>
     <div class="amount-row">
       <label><span data-i18n="bet.amount">下注金额（$SI）</span><span><span data-i18n="bet.min">最低</span> <b>50,000</b> · <span data-i18n="bet.max">单注上限</span> <b>5,000,000</b></span></label>
       <div class="amount-input"><input id="betAmount" type="number" inputmode="decimal" min="0" step="1000" value="100000" placeholder="输入金额"><span class="unit">$SI</span></div>
@@ -632,6 +676,7 @@ html{scrollbar-gutter:stable}
   <!-- ===== 钱包 ===== -->
   <section class="card" id="walletCard">
     <h2><span data-i18n="wallet.title">👛 我的钱包</span> <span class="tag" id="chainTag">BSC 测试网</span></h2>
+    <div class="wallet-stats-line"><div class="hdr-stats in-wallet"><span data-i18n="stats.hdrRounds">已结算局数</span> <b id="statRounds">—</b><br><span data-i18n="stats.pool">累计派奖</span> <b id="statPool">0 $SI</b></div></div>
     <div class="wallet-grid">
       <div class="w-stat"><div class="lbl" data-i18n="wallet.si"> $SI 钱包余额</div><div class="val" id="siBalance">—</div></div>
       <div class="w-stat"><div class="lbl" data-i18n="wallet.internal">待领取（赢利/返佣）</div><div class="val" id="contractBalance">—</div></div>
@@ -940,7 +985,7 @@ zh: {
 "footer.text":"乾坤战场 QIANKUN ARENA · $SI 链上下注 v1<br>行情：币安优先 · Bitget 备用 · Gate 兜底 · 结算锚：Chainlink BTC/USD（链上）",
 "chart.title":"📈 BTC/USDT · 1 分钟 K 线","chart.titleLine":"📈 BTC/USDT · 分时","chart.line":"分时","chart.candles":"K线","chart.startPrice":"开始价格","chart.endPrice":"结束价格","road.title":"🎲 路引","road.longWin":"涨胜","road.shortWin":"跌胜","road.draw":"平","road.empty":"暂无已结算局","stats.rounds":"已结算局数","stats.hdrRounds":"已结算局数","stats.pool":"累计派奖","state.betting":"开始预测","state.waiting":"结果生成中","state.settling":"结算中","nav.home":"对决","nav.play":"玩法","nav.fight":"马上战斗","win.settling":"即将进行结算","win.paying":"奖励结算中…","mode.midShort":"3 分钟","nav.wallet":"钱包","nav.records":"记录","nav.invite":"邀请","mode.title":"选择玩法","mode.current":"当前","mode.close":"关闭","mode.rules":"选方向 → 开局采开始价 → 结束价比开始价高低定胜负，赢家分输家奖池（平台费 5%）。平局退本金。","win.long":"看涨获胜","win.short":"看跌获胜","win.draw":"平局 · 退回本金","chart.up":"涨","chart.down":"跌","chart.waiting":"等待行情…",
 "chart.win":"赢","chart.lose":"输","chart.draw":"平局","chart.lockPrice":"开始价","chart.closePrice":"结束价",
-"phase.betting":"下注进行中","phase.locked":"结果生成中",
+"phase.betting":"下注进行中","phase.locked":"结果生成中","phase.prestart":"即将开始",
 "cd.cutoff":"下注截止","cd.locked":"下注已截止","cd.lockSoon":"结束前 15 秒停止下注，请尽快确认",
 "cd.lockedSub":"结果生成中 · 开始价 {price}","cd.lockAt":"本局结束 @{time}","cd.settling":"结算中…","cd.remain":"本局剩余","cd.nextRound":"下一局 {time} 开始 · {sec} 秒后","cd.nextCreating":"下一局创建中…","mkt.closedNvda":"NVDA 休市中（跟随美股时段）· 距下次开盘 {t}",
 "power.longDom":"🔴 多军压制","power.shortDom":"🔵 空军压制","power.even":"势均力敌",
@@ -1016,7 +1061,7 @@ en: {
 "footer.text":"QIANKUN ARENA · $SI On-Chain Prediction v1<br>Price: Binance first · Bitget backup · Gate fallback · Settlement anchor: Chainlink BTC/USD (on-chain)",
 "chart.title":"📈 BTC/USDT · 1m Candles","chart.titleLine":"📈 BTC/USDT · Live Line","chart.line":"Line","chart.candles":"Candles","chart.startPrice":"Start Price","chart.endPrice":"End Price","road.title":"🎲 Road","road.longWin":"Long won","road.shortWin":"Short won","road.draw":"Draw","road.empty":"No settled rounds yet","stats.rounds":"Rounds Settled","stats.pool":"Total Paid Out","state.betting":"Betting Open","state.waiting":"Result Pending","state.settling":"Settling","nav.home":"Duel","nav.play":"Modes","nav.fight":"Battle Now","win.settling":"Settling Soon","win.paying":"Paying rewards…","mode.midShort":"3-Min","nav.wallet":"Wallet","nav.records":"Records","nav.invite":"Invite","mode.title":"Choose Mode","mode.current":"Current","mode.close":"Close","mode.rules":"Pick a side → start price sampled at open → end price vs start price decides. Winners split the losers pool (5% fee). Ties refund.","win.long":"LONG WINS","win.short":"SHORT WINS","win.draw":"Draw · Refunded","chart.up":"Up","chart.down":"Down","chart.waiting":"Waiting for price feed…",
 "chart.win":"WIN","chart.lose":"LOSE","chart.draw":"DRAW","chart.lockPrice":"START","chart.closePrice":"END",
-"phase.betting":"Betting Open","phase.locked":"Result Pending",
+"phase.betting":"Betting Open","phase.locked":"Result Pending","phase.prestart":"Starting Soon",
 "cd.cutoff":"Betting Closes In","cd.locked":"Betting Closed","cd.lockSoon":"Betting stops 15s before the end — confirm soon",
 "cd.lockedSub":"Result pending · Start {price}","cd.lockAt":"Ends @ {time}","cd.settling":"Settling…","cd.remain":"Round ends in","cd.nextRound":"Next round {time} · in {sec}s","cd.nextCreating":"Next round being created…","mkt.closedNvda":"NVDA market closed (US hours) · next open in {t}",
 "power.longDom":"🔴 Longs dominating","power.shortDom":"🔵 Shorts dominating","power.even":"Evenly matched",
@@ -1105,7 +1150,7 @@ function saveInvite() { localStorage.setItem("dk_invite_v1", JSON.stringify(S.in
    任一源失败即自动切下一源；全部失败先跑本地模拟价兜底，同时继续重试真源。 */
 let SYMBOL = "BTCUSDT";
 let PAIR_USDT = "BTC_USDT";
-const PROVIDERS = ["relay", "gate", "bitgetws", "vision", "bitget"];
+const PROVIDERS = ["relay", "vision", "gate", "bitgetws", "bitget"];
 let gen = 0, ws = null, pollTimer = null, retryTimer = null;
 // 本地模拟价兜底：没连上真源时先跑模拟价（BTC 61000 附近小幅波动，每秒一跳），
 // 价格与 K 线立刻有数；真行情一到马上停模拟换真价，徽标明确标“演示价”。
@@ -1159,9 +1204,13 @@ function notePrice(p, fromSim) {
   }
   // 真行情一到就停模拟价，马上换真价
   stopSim();
-  // 异常跳变过滤：单笔偏离上价 >0.5% 先扣下，下一笔同向确认才放行，防喂价切换的坏 tick 把图轴拉扁
-  if (!fromSim && S.price && Math.abs(p - S.price) / S.price > 0.005) {
-    if (_suspectTick && Math.abs(p - _suspectTick) / _suspectTick < 0.001) _suspectTick = null;
+  // 异常跳变过滤：单笔偏离上价过大先扣下，下一笔同向确认才放行，防喂价切换的坏 tick 把图轴拉扁。
+  // 阈值按品类：加密 0.5%（逐笔流下真跳变罕见、确认只需几毫秒）；SI 是薄池 meme 币，
+  // 3 秒轮询间真涨跌常 >0.5%，用 0.5% 会把真价成片扣死（图只剩几个点的真凶之一），给 5%。
+  const SUSPECT_PCT = S.assetId === 0 ? 0.05 : 0.005;
+  const SUSPECT_CONFIRM = S.assetId === 0 ? 0.01 : 0.001;
+  if (!fromSim && S.price && Math.abs(p - S.price) / S.price > SUSPECT_PCT) {
+    if (_suspectTick && Math.abs(p - _suspectTick) / _suspectTick < SUSPECT_CONFIRM) _suspectTick = null;
     else { _suspectTick = p; return; }
   } else _suspectTick = null;
   if (!S._realSeen) {
@@ -1172,6 +1221,7 @@ function notePrice(p, fromSim) {
     if (typeof rebuildLineTicks === "function") rebuildLineTicks();
   }
   S.price = p;
+  sampleRoundBuf(p); // 本局采样缓冲（图表返工）：真价才采样，模拟价不进缓冲
   const pel = $("price");
   pel.textContent = fmtPrice(p);
   if (S.prevPrice !== null && p !== S.prevPrice) {
@@ -1264,7 +1314,7 @@ function connectProvider(idx) {
   }
   if (name === "vision") {
     setSource("Binance Vision", false);
-    try { ws = new WebSocket("wss://data-stream.binance.vision/ws/" + SYMBOL.toLowerCase() + "@trade"); }
+    try { ws = new WebSocket("wss://data-stream.binance.vision/ws/" + SYMBOL.toLowerCase() + "@aggTrade"); }
     catch (e) { return failover(idx); }
     ws.onopen = () => { if (g === gen) setSource("Binance Vision", true); };
     ws.onmessage = (ev) => {
@@ -1376,7 +1426,34 @@ const ASSETS_META = [
   { id: 5, sym: "XAG", pair: "XAG/USD", kind: "metal", metal: "xagPrice" },
   { id: 6, sym: "NVDA", pair: "NVDA/USD", kind: "nvda" },
 ];
-const SI_POOL = "0xDE6a7B01b73e3daF74249B437ec3b479304de67F"; // PancakeSwap v2 SI/SPCXB 主池（DexScreener 一次性选定，流动性最高）
+const SI_POOL = "0xDE6a7B01b73e3daF74249B437ec3b479304de67F";
+// SI 链上直读（与 keeper 结算同源同公式）：SI/SPCXB 主池 × SPCXB/BNB 池 × BNB/USD
+const SI_TOKEN_ADDR = "0xd1cab9922357fc7ae7a9861b29191b84bdb47777";
+const SPCXB_TOKEN_ADDR = "0xbe9D156892E55e7154BcD3cB0FEA677F9D3103E1";
+const SPCXB_POOL = "0x7b07ef0C9Fc2198De1d20B2828845862179CCF6f";
+const BSC_MAINNET_RPC = "https://bsc-dataseed.binance.org";
+let _siMainProvider = null;
+const PAIR_ABI_MIN = ["function token0() view returns (address)", "function token1() view returns (address)", "function getReserves() view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast)"];
+const ERC20_DEC_ABI = ["function decimals() view returns (uint8)"];
+const _pairMetaCache = {};
+async function poolHumanPrice(provider, pairAddr, baseAddr) {
+  let meta = _pairMetaCache[pairAddr];
+  if (!meta) {
+    const pair = new ethers.Contract(pairAddr, PAIR_ABI_MIN, provider);
+    const t0 = await pair.token0();
+    const t1 = await pair.token1();
+    const baseIs0 = t0.toLowerCase() === baseAddr.toLowerCase();
+    const b = new ethers.Contract(baseAddr, ERC20_DEC_ABI, provider);
+    const q = new ethers.Contract(baseIs0 ? t1 : t0, ERC20_DEC_ABI, provider);
+    meta = { baseIs0, decB: Number(await b.decimals()), decQ: Number(await q.decimals()) };
+    _pairMetaCache[pairAddr] = meta;
+  }
+  const pair = new ethers.Contract(pairAddr, PAIR_ABI_MIN, provider);
+  const res = await pair.getReserves();
+  const rb = meta.baseIs0 ? res[0] : res[1];
+  const rq = meta.baseIs0 ? res[1] : res[0];
+  return (Number(rq) / 10 ** meta.decQ) / (Number(rb) / 10 ** meta.decB);
+} // PancakeSwap v2 SI/SPCXB 主池（DexScreener 一次性选定，流动性最高）
 let assetPollTimer = null;
 const _feedCache = {};
 let _readContract = null;
@@ -1433,28 +1510,88 @@ function startAssetFeeds(id) {
     connectProvider(0); seedKlines(); poll24h();
   } else if (meta.kind === "si") {
     seedSiKlines();
-    const poll = async () => {
+    // 显示源改链上直读（实测 60 秒 13 个新价点，DexScreener 同窗只有 1 个）：
+    // 每 1.5 秒读两个池 reserves，与 keeper 结算完全同源同公式；连续失败 3 次回退 DexScreener。
+    const g = gen;
+    let fails = 0, bnbUsd = 0, cycle = 0;
+    const pollBnb = async () => {
       try {
-        const r = await fetch("https://api.dexscreener.com/latest/dex/pairs/bsc/" + SI_POOL, { signal: AbortSignal.timeout(5000) });
+        const r = await fetch("https://data-api.binance.vision/api/v3/ticker/price?symbol=BNBUSDT", { signal: AbortSignal.timeout(4000) });
         const j = await r.json();
-        const pr = j && j.pairs && j.pairs[0] && parseFloat(j.pairs[0].priceUsd);
-        if (pr > 0) { setSource("DexScreener · PancakeSwap 主池", true); notePrice(pr); }
+        const p = parseFloat(j && j.price);
+        if (p > 0) bnbUsd = p;
       } catch (e) {}
     };
-    poll(); assetPollTimer = setInterval(poll, 3000);
+    pollBnb();
+    const poll = async () => {
+      if (g !== gen) return;
+      cycle++;
+      if (cycle % 4 === 0) pollBnb();
+      try {
+        if (!_siMainProvider) _siMainProvider = new ethers.JsonRpcProvider(BSC_MAINNET_RPC);
+        const siInSpcxb = await poolHumanPrice(_siMainProvider, SI_POOL, SI_TOKEN_ADDR);
+        const spcxbInBnb = await poolHumanPrice(_siMainProvider, SPCXB_POOL, SPCXB_TOKEN_ADDR);
+        if (bnbUsd > 0) {
+          const pr = siInSpcxb * spcxbInBnb * bnbUsd;
+          if (pr > 0) { fails = 0; setSource("PancakeSwap 主池 · 链上直读", true); notePrice(pr); }
+        }
+      } catch (e) {
+        fails++;
+        if (fails >= 3) {
+          try {
+            const r = await fetch("https://api.dexscreener.com/latest/dex/pairs/bsc/" + SI_POOL, { signal: AbortSignal.timeout(4000) });
+            const j = await r.json();
+            const pr = j && j.pairs && j.pairs[0] && parseFloat(j.pairs[0].priceUsd);
+            if (pr > 0) { setSource("DexScreener · PancakeSwap 主池", true); notePrice(pr); }
+          } catch (e2) {}
+        }
+      }
+    };
+    poll(); assetPollTimer = setInterval(poll, 1500);
   } else if (meta.kind === "metal") {
-    const poll = async () => {
-      try {
-        const r = await fetch("https://data-asg.goldprice.org/dbXRates/USD", { signal: AbortSignal.timeout(5000) });
-        const j = await r.json();
-        const it = j && j.items && j.items[0];
-        const pr = it && parseFloat(it[meta.metal]);
-        if (pr > 0) { setSource("GoldPrice.org 现货金银", true); notePrice(pr); }
-      } catch (e) {}
+    // Gate 合约逐笔 WS（实测 XAU 约 108 tick/分钟、XAG 约 120 tick/分钟）；
+    // 8 秒无 tick 或断线则回退 goldprice.org 轮询。显示与 keeper 结算同为 Gate 合约价口径。
+    const g = gen;
+    const contract = meta.metal === "xauPrice" ? "XAU_USDT" : "XAG_USDT";
+    let gotTick = false, pollStarted = false;
+    const startMetalPoll = () => {
+      if (g !== gen || pollStarted) return;
+      pollStarted = true;
+      const poll = async () => {
+        try {
+          const r = await fetch("https://data-asg.goldprice.org/dbXRates/USD", { signal: AbortSignal.timeout(5000) });
+          const j = await r.json();
+          const it = j && j.items && j.items[0];
+          const pr = it && parseFloat(it[meta.metal]);
+          if (pr > 0) { setSource("GoldPrice.org 现货金银", true); notePrice(pr); }
+        } catch (e) {}
+      };
+      poll(); assetPollTimer = setInterval(poll, 3000);
     };
-    poll(); assetPollTimer = setInterval(poll, 5000);
+    try {
+      ws = new WebSocket("wss://fx-ws.gateio.ws/v4/ws/usdt");
+      ws.onopen = () => { try { ws.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "futures.trades", event: "subscribe", payload: [contract] })); } catch (e) {} };
+      ws.onmessage = (ev) => {
+        if (g !== gen) return;
+        try {
+          const j = JSON.parse(ev.data);
+          if (j.event === "update" && j.result) {
+            const arr = Array.isArray(j.result) ? j.result : [j.result];
+            for (const tr of arr) {
+              const pr = parseFloat(tr.price);
+              if (pr > 0) { gotTick = true; setSource("Gate 合约 · 逐笔", true); notePrice(pr); }
+            }
+          }
+        } catch (e) {}
+      };
+      ws.onerror = () => { try { ws.close(); } catch (e) {} };
+      ws.onclose = () => { if (g === gen && !gotTick) startMetalPoll(); };
+      setTimeout(() => { if (g === gen && !gotTick) { try { ws.close(); } catch (e) {} startMetalPoll(); } }, 8000);
+    } catch (e) { startMetalPoll(); }
   } else if (meta.kind === "nvda") {
-    const poll = async () => {
+    // 显示主源：Nasdaq 官方报价 2 秒轮询（Binance 期货 NVDA 永续 WS 实测被地区拦截，不可用）；
+    // 直连失败（CORS/限流）回退读链上 mock（keeper 同源 Nasdaq 推价，30 秒一推）。
+    const pollMock = async () => {
       try {
         const feedAddr = await resolveAssetFeed(6);
         if (!feedAddr) return;
@@ -1465,7 +1602,17 @@ function startAssetFeeds(id) {
         if (pr > 0) { setSource("NVDA 采样价（与结算同源）", true); notePrice(pr); }
       } catch (e) {}
     };
-    poll(); assetPollTimer = setInterval(poll, 5000);
+    const poll = async () => {
+      try {
+        const r = await fetch("https://api.nasdaq.com/api/quote/NVDA/info?assetclass=stocks", { signal: AbortSignal.timeout(4000), headers: { Accept: "application/json" } });
+        const j = await r.json();
+        const raw = j && j.data && j.data.primaryData && j.data.primaryData.lastSalePrice;
+        const pr = Number(String(raw || "").replace(/[$,]/g, ""));
+        if (pr > 0) { setSource("Nasdaq 官方报价", true); notePrice(pr); return; }
+        throw new Error("nasdaq-bad");
+      } catch (e) { pollMock(); }
+    };
+    poll(); assetPollTimer = setInterval(poll, 2000);
   }
 }
 function setAsset(id) {
@@ -1473,6 +1620,7 @@ function setAsset(id) {
   S.assetId = id;
   document.querySelectorAll(".asset-chip").forEach((c) => c.classList.toggle("on", Number(c.dataset.asset) === id));
   chainRound = null; nextChainRound = null; lastChainId = null; lastRoundId = null; lastPhase = null;
+  roundBuf = null; frozenBuf = null; // 采样缓冲按品类隔离：切品类全部清掉，绝不串图
   S.lockPrice = null; S.closePrice = null; S.chartLock = null; S.chartClose = null; S.chartResult = null;
   S.price = null; S._realSeen = false; S.ticks = []; S.candles = []; S.trades = [];
   if (typeof KLINE !== "undefined") KLINE.dirty = true;
@@ -1487,8 +1635,9 @@ function fmtCd(s) { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + "
 function fmtClock(ts) { const d = new Date(ts * 1000); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
 function updateBigCd(remain, total, phase, nextText) {
   const box = $("bigCd"); if (!box) return;
+  if (total > 0) remain = Math.min(remain, total); // 硬钳制：大倒计时绝不许超过本局总时长（缺陷 4）
   $("bigCdTime").textContent = fmtCd(remain);
-  $("bigCdState").textContent = remain <= 0 ? t("cd.settling") : phase === "locked" ? t("phase.locked") : t("phase.betting");
+  $("bigCdState").textContent = remain <= 0 ? t("cd.settling") : phase === "locked" ? t("phase.locked") : phase === "prestart" ? t("phase.prestart") : t("phase.betting");
   box.classList.toggle("urgent", remain <= 15 && remain > 0);
   const bar = $("bigCdBar"); if (bar) bar.style.width = (total > 0 ? Math.max(0, Math.min(100, (remain / total) * 100)) : 0) + "%";
   $("bigCdNext").textContent = nextText || "";
@@ -1519,6 +1668,76 @@ function roundDuration() { return S.mode === "speed" ? 60 : S.mode === "mid" ? 1
 function modeNum() { return S.mode === "speed" ? 0 : S.mode === "mid" ? 2 : 1; }
 let chainRound = null, lastChainId = null, lastRoundId = null, lastPhase = null;
 let nextChainRound = null; // 下一局（keeper 已预创建），用于提前亮出「X 秒后开始」
+
+/* ---------------- 本局采样缓冲（2026-11-25 图表返工·缺陷 1/2/3） ----------------
+   旧图把过去 15 根 1 分钟 K 线的 OHLC 拼点当本局线画，窗口/品类/局一串就崩：
+   观察期空白、纵轴被离群点拉塌、线挤在左边缘。重做：前端对当前品类每约 1 秒
+   采一次显示价，存入「本局采样缓冲」（key = assetId:roundId，切品类/切局必换
+   缓冲）；横轴固定本局 [startTime, lockTime]，线从左端链上开始价画到当前时刻；
+   局结束缓冲冻结，观察期与两局之间继续显示冻结线，绝不空白。 */
+let roundBuf = null;   // { key, assetId, roundId, startTime, lockTime, lockPrice, closePrice, pts:[{t,p}], axisHi, axisLo, dropRun }
+let frozenBuf = null;  // 上一局冻结缓冲（同结构），仅同品类内使用
+function bufKey(assetId, roundId) { return assetId + ":" + roundId; }
+function newRoundBuf(r) {
+  return {
+    key: bufKey(r.assetId, r.id), assetId: r.assetId, roundId: r.id,
+    startTime: r.startTime, lockTime: r.lockTime,
+    lockPrice: (r.lockPrice && Number(r.lockPrice) > 0) ? Number(r.lockPrice) / 1e8 : null,
+    closePrice: null, pts: [], axisHi: null, axisLo: null, dropRun: 0,
+  };
+}
+function sampleRoundBuf(p) {
+  if (!chainRound || !p || !(p > 0)) return;
+  if (chainRound.assetId !== S.assetId || chainRound.mode !== modeNum()) return;
+  const nowS = Date.now() / 1000;
+  if (nowS < chainRound.startTime - 2 || nowS > chainRound.lockTime + 1) return; // 只采本局窗口内
+  if (!roundBuf || roundBuf.key !== bufKey(chainRound.assetId, chainRound.id)) {
+    if (roundBuf && roundBuf.pts.length >= 2 && roundBuf.assetId === S.assetId) frozenBuf = roundBuf;
+    roundBuf = newRoundBuf(chainRound);
+  }
+  // 链上开始价到手后补锚点：线左端 = 开始价（拿不到才用首个采样点）
+  if (chainRound.lockPrice && Number(chainRound.lockPrice) > 0) {
+    const lp = Number(chainRound.lockPrice) / 1e8;
+    if (roundBuf.lockPrice !== lp) {
+      roundBuf.lockPrice = lp;
+      roundBuf.pts = roundBuf.pts.filter((k) => k.t > chainRound.startTime + 0.5);
+      roundBuf.pts.unshift({ t: chainRound.startTime, p: lp });
+    }
+  }
+  const pts = roundBuf.pts;
+  const last = pts[pts.length - 1];
+  // 逐 tick 采样（丝滑红线）：WS 逐笔流每个 tick 都落点；尾点 120ms 内直接刷新
+  // 价与时刻，线尾巴永远在动，不再是 1 秒一格的台阶。慢源（SI/金银/NVDA）由
+  // 1 秒补点定时器用上一价补点（平线段），保证不断线、一局 ≥30 点。
+  if (last && nowS - last.t < 0.12 && last.t > roundBuf.startTime + 0.5) { last.p = p; last.t = nowS; if (typeof KLINE !== "undefined") KLINE.dirty = true; return; }
+  // 离群过滤：偏离最近 5 点中位数过大丢弃（阈值按品类：SI 波动大给 3%，其余 0.8%）；
+  // 连续 3 个同向离群视为真实跳变放行
+  const OUTLIER_PCT = roundBuf.assetId === 0 ? 0.03 : 0.008;
+  if (pts.length >= 4) {
+    const recent = pts.slice(-5).map((k) => k.p).sort((a, b) => a - b);
+    const med = recent[Math.floor(recent.length / 2)];
+    if (med > 0 && Math.abs(p - med) / med > OUTLIER_PCT) {
+      roundBuf.dropRun++;
+      if (roundBuf.dropRun < 3) return;
+      roundBuf.dropRun = 0;
+    } else roundBuf.dropRun = 0;
+  }
+  pts.push({ t: nowS, p });
+  if (pts.length > 1500) pts.splice(0, pts.length - 1500);
+  if (typeof KLINE !== "undefined") KLINE.dirty = true;
+}
+/* 当前该画哪个缓冲：本局进行中画本局；本局刚结束、下一局未开始画刚冻结的本局；
+   本局还没攒出线（刚开局）画本局锚点；都没有才回退 frozenBuf。 */
+function displayBuf() {
+  const nowS = Date.now() / 1000;
+  if (roundBuf && roundBuf.pts.length >= 1) {
+    if (chainRound && roundBuf.key === bufKey(chainRound.assetId, chainRound.id)) return roundBuf;
+    if (roundBuf.assetId === S.assetId) return roundBuf; // 已结束的本局冻结线（下一局未开始）
+    return null;
+  }
+  if (frozenBuf && frozenBuf.pts.length >= 2 && frozenBuf.assetId === S.assetId && nowS - frozenBuf.lockTime < 3600) return frozenBuf;
+  return null;
+}
 function normRound(rd) {
   return {
     id: Number(rd.id !== undefined ? rd.id : rd[0]),
@@ -1590,6 +1809,15 @@ function tickRound() {
   if (S.assetId === 6 && !usMarketOpenFE()) { showNvdaClosed(); return; }
   hideNvdaClosed();
   if (S.contract && chainRound) { tickChainRound(); return; }
+  if (S.contract) {
+    // 已连钱包但当前局还没发现到（刚打开/刚切品类）：只显示等待，绝不掉进下面的
+    // 本地演示分支——旧 bug 正是演示分支拿 floor(now/60) 当局号，全屏闪出
+    // 「第 29926721 局」的假局号（图表返工·缺陷 5）。
+    $("roundId").textContent = roundTitle("—");
+    const csW = $("chartState"); if (csW) csW.textContent = t("state.waiting");
+    if (!tickRound._lastTry || Date.now() - tickRound._lastTry > 3000) { tickRound._lastTry = Date.now(); discoverRound(); }
+    return;
+  }
   const r = currentRound();
   S.viewWin = { start: r.start - 10, end: r.end + 14 };
   S.cdSec = r.nowSec < r.lockAt ? r.lockAt - r.nowSec : r.end - r.nowSec;
@@ -1602,9 +1830,8 @@ function tickRound() {
     S.pools = { long: 0, short: 0 };
     S.poolsLive = false;
     S.chartLock = null; S.chartClose = null; S.chartResult = null;
-    $("roundId").textContent = roundTitle(r.roundId);
+    $("roundId").textContent = roundTitle("—"); // 演示态不显示时间戳推导的假局号（缺陷 5）
     $("lockPrice").textContent = "—";
-    showRoundTransition(r.roundId);
     refreshPools();
   }
   const bettingOpen = r.nowSec < r.lockAt;
@@ -1623,8 +1850,7 @@ function tickRound() {
       $("phaseTag").className = "phase-tag locked";
       $("cdLabel").textContent = t("cd.locked");
       $("cdSub").textContent = S.lockPrice ? t("cd.lockedSub", { price: fmtPrice(S.lockPrice) }) : t("cd.settling");
-      flashScreen();
-      bgmImpact("lock");
+      bgmImpact("lock"); // 全屏闪红已删除（缺陷 3）
     } else {
       $("phaseTag").textContent = t("phase.betting");
       $("phaseTag").className = "phase-tag betting";
@@ -1688,13 +1914,21 @@ function tickChainRound() {
   // 单段制：本局在链上变 SETTLED 即定版（结束价取链上 closePrice），不等切到下一局
   if (r.status === 2 && S.lastSettledId !== r.id) {
     if (r.closePrice && Number(r.closePrice) > 0) S.closePrice = Number(r.closePrice) / 1e8;
+    if (roundBuf && roundBuf.key === bufKey(r.assetId, r.id) && S.closePrice) roundBuf.closePrice = S.closePrice; // 冻结线右端 = 链上结束价
     settlePrevRound(r.id);
   }
   const cutoff = r.lockTime - CONFIG.BET_CUTOFF_SEC;
-  const bettingOpen = nowSec < cutoff && nowSec >= r.startTime && r.status === 0;
+  // 倒计时口径（图表返工·缺陷 4）：只能来自当前选中局的 [startTime, lockTime]。
+  // 旧 bug：discoverRound 只找到未来局时把它当当前局，倒计时算到它的 closeTime，
+  // 1 分钟场打出 88 秒（把下一局的等待也算进来了）。现在未来局单独走 prestart：
+  // 倒计时只到它 startTime，且一律钳制在本局总时长内。
+  const prestart = nowSec < r.startTime;
+  const bettingOpen = !prestart && nowSec < cutoff && r.status === 0;
   S.viewWin = { start: (r.startTime || (r.lockTime - roundDuration())) - 10, end: r.closeTime + 14 };
-  S.cdSec = bettingOpen ? cutoff - nowSec : r.closeTime - nowSec;
-  const phase = bettingOpen ? "betting" : "locked";
+  S.cdSec = prestart ? Math.min(roundDuration(), r.startTime - nowSec)
+    : bettingOpen ? cutoff - nowSec
+    : Math.max(0, Math.min(roundDuration(), r.closeTime - nowSec));
+  const phase = prestart ? "prestart" : bettingOpen ? "betting" : "locked";
   if (phase !== lastPhase) {
     lastPhase = phase;
     S.phase = phase;
@@ -1704,8 +1938,12 @@ function tickChainRound() {
       $("phaseTag").className = "phase-tag locked";
       $("cdLabel").textContent = t("cd.locked");
       $("cdSub").textContent = S.lockPrice ? t("cd.lockedSub", { price: fmtPrice(S.lockPrice) }) : t("cd.settling");
-      flashScreen();
-      bgmImpact("lock");
+      bgmImpact("lock"); // 全屏闪红已按用户口径删除（图表返工·缺陷 3），只留音效
+    } else if (phase === "prestart") {
+      $("phaseTag").textContent = t("phase.prestart");
+      $("phaseTag").className = "phase-tag locked";
+      $("cdLabel").textContent = t("phase.prestart");
+      $("cdSub").textContent = t("cd.nextRound", { time: fmtClock(r.startTime), sec: Math.max(0, r.startTime - nowSec) });
     } else {
       $("phaseTag").textContent = t("phase.betting");
       $("phaseTag").className = "phase-tag betting";
@@ -1733,9 +1971,9 @@ function tickChainRound() {
     ? t("cd.lockAt", { time: new Date(r.lockTime * 1000).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false }) })
     : t("cd.settling");
   if (nowSec > r.closeTime + 2) discoverRound();
-  const csEl2 = $("chartState"); if (csEl2) csEl2.textContent = phase === "betting" ? t("state.betting") : t("state.waiting");
-  updateBigCd(Math.max(0, r.closeTime - nowSec), Math.max(1, r.lockTime - r.startTime), phase,
-    nextChainRound ? t("cd.nextRound", { time: fmtClock(nextChainRound.startTime), sec: Math.max(0, nextChainRound.startTime - nowSec) })
+  const csEl2 = $("chartState"); if (csEl2) csEl2.textContent = phase === "betting" ? t("state.betting") : phase === "prestart" ? t("phase.prestart") : t("state.waiting");
+  updateBigCd(prestart ? Math.max(0, r.startTime - nowSec) : Math.max(0, r.closeTime - nowSec), Math.max(1, r.lockTime - r.startTime), phase,
+    prestart ? "" : nextChainRound ? t("cd.nextRound", { time: fmtClock(nextChainRound.startTime), sec: Math.max(0, nextChainRound.startTime - nowSec) })
       : (phase === "locked" ? t("cd.nextCreating") : ""));
   updateBetBtn();
 }
@@ -1835,6 +2073,7 @@ function renderPools() {
   }
   flashOdds("oddsLong", oL);
   flashOdds("oddsShort", oS);
+  { const om = $("oddsMini"); if (om) om.textContent = "赔率 多 " + oL + " · 空 " + oS; }
   updateCalc();
 }
 function myBetAmount() {
@@ -2103,6 +2342,7 @@ async function refreshBalances() {
   try {
     const bal = await S.si.balanceOf(S.account);
     $("siBalance").innerHTML = fmt(Number(ethers.formatUnits(bal, TOKEN.decimals))) + " <small>$SI</small>";
+    { const mb = $("siBalanceMini"); if (mb) mb.textContent = fmt(Number(ethers.formatUnits(bal, TOKEN.decimals))); }
   } catch (e) { $("siBalance").textContent = t("wallet.readFail"); }
   try {
     const bnb = await S.provider.getBalance(S.account);
@@ -2118,12 +2358,14 @@ async function refreshBalances() {
       const ub = await S.contract.getUserBet(S.roundId, S.account);
       const tot = Number(ethers.formatUnits(ub[0] + ub[1], TOKEN.decimals));
       $("myRoundBet").innerHTML = fmt(tot) + " <small>$SI</small>";
+      { const mm = $("myRoundBetMini"); if (mm) mm.textContent = fmt(tot); }
     } catch (e) {}
   } else {
     $("contractBalance").textContent = t("wallet.noContract");
     $("myRebate").textContent = t("wallet.noContract");
     const mine = S.myBets.filter((b) => b.roundId === S.roundId).reduce((a, b) => a + b.amount, 0);
     $("myRoundBet").innerHTML = fmt(mine) + " <small>$SI</small>";
+    { const mm = $("myRoundBetMini"); if (mm) mm.textContent = fmt(mine); }
   }
 }
 /* M-7（审计）：推荐绑定先查后绑，绝不自动发交易。
@@ -2338,6 +2580,7 @@ function updateCd321(left) {
 }
 function showRoundTransition(id) {
   if (!FX.on) return;
+  if (!id || !isFinite(Number(id)) || Number(id) > 10000000) return; // 只许链上真实局号，时间戳推导的大数一律不许上屏（缺陷 5）
   const rt = $("roundTrans");
   if (!rt) return;
   $("rtWord").textContent = t("round.new", { id });
@@ -2984,6 +3227,187 @@ function rebuildLineTicks() {
   pts.sort((a, b) => a.t - b.t);
   S.linePts = pts;
 }
+/* 本局缓冲画线（2026-11-25 图表返工·缺陷 1/2/3）：横轴固定本局 [startTime, lockTime]，
+   线从左端链上开始价画到当前时刻（结束则冻结到结束价）；纵轴只用本局采样点的
+   稳健范围（5%/95% 分位裁剪 + 边距），一局之内只许缓慢收敛、绝不逐帧跳变。 */
+function drawRoundLine(ctx, W, H, buf) {
+  const em = $("chartEmpty");
+  const nowMs = Date.now();
+  const t1 = buf.lockTime * 1000;
+  const live = !!(chainRound && buf.key === bufKey(chainRound.assetId, chainRound.id));
+  const ended = nowMs >= t1;
+  let pts = buf.pts.slice();
+  if (buf.lockPrice && (!pts.length || pts[0].t > buf.startTime + 0.5)) pts.unshift({ t: buf.startTime, p: buf.lockPrice });
+  if (!ended) pts = pts.filter((k) => k.t * 1000 <= nowMs + 500);
+  if (buf.closePrice && ended) {
+    const lastP = pts[pts.length - 1];
+    if (!lastP || lastP.t < buf.lockTime - 1) pts.push({ t: buf.lockTime, p: buf.closePrice });
+  }
+  if (!pts.length) { if (em) em.classList.remove("hide"); return; }
+  if (em) em.classList.add("hide");
+  const padR = 66, padL = 6, padT = 18, padB = 18;
+  // 纵轴稳健范围：本局点 + 开始价/结束价 + 进行中当前价，分位裁剪后加边距
+  const vals = pts.map((k) => k.p);
+  if (live && S.price) vals.push(S.price);
+  if (buf.lockPrice) vals.push(buf.lockPrice);
+  if (buf.closePrice) vals.push(buf.closePrice);
+  const srt = vals.slice().sort((a, b) => a - b);
+  let vLo, vHi;
+  if (srt.length >= 10) {
+    vLo = srt[Math.floor(srt.length * 0.05)];
+    vHi = srt[Math.min(srt.length - 1, Math.ceil(srt.length * 0.95) - 1)];
+  } else { vLo = srt[0]; vHi = srt[srt.length - 1]; }
+  const midV = (vHi + vLo) / 2 || vHi || 1;
+  const padV = Math.max((vHi - vLo) * 0.3, Math.abs(midV) * 0.0006);
+  const tHi = vHi + padV, tLo = vLo - padV;
+  if (buf.axisHi == null) { buf.axisHi = tHi; buf.axisLo = tLo; }
+  else {
+    // 外扩立即生效（保线不出界），内缩每帧最多 12%：一局内纵轴只许缓慢收敛
+    buf.axisHi = tHi > buf.axisHi ? tHi : buf.axisHi + (tHi - buf.axisHi) * 0.12;
+    buf.axisLo = tLo < buf.axisLo ? tLo : buf.axisLo + (tLo - buf.axisLo) * 0.12;
+  }
+  let hi = buf.axisHi, lo = buf.axisLo;
+  for (const k of pts) { if (k.p > hi) hi = k.p + padV * 0.2; if (k.p < lo) lo = k.p - padV * 0.2; }
+  buf.axisHi = hi; buf.axisLo = lo;
+  if (!(hi > lo)) { hi = lo + Math.abs(midV) * 0.001 + 1e-9; }
+  const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const x0 = padL, x1 = W - padR;
+  const tx = (sec) => x0 + Math.max(0, Math.min(1, (sec - buf.startTime) / (buf.lockTime - buf.startTime))) * (x1 - x0);
+  ctx.font = "10px sans-serif";
+  ctx.textBaseline = "middle";
+  // 背景点阵 + 网格 + 纵轴刻度
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let gx = x0 + 6; gx < x1; gx += 14) for (let gy = padT + 4; gy < H - padB; gy += 14) { ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = "rgba(42,50,64,.55)";
+  ctx.fillStyle = "#8b96ad";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) {
+    const v = lo + (hi - lo) * i / 3;
+    const yy = y(v);
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
+    ctx.textAlign = "left";
+    ctx.fillText(fmtPrice(v).replace("$", ""), x1 + 5, yy);
+  }
+  const tag = (cx, cy, price, caption, color) => {
+    ctx.font = "bold 11px sans-serif";
+    const w1 = ctx.measureText(price).width;
+    ctx.font = "9px sans-serif";
+    const w2 = ctx.measureText(caption).width;
+    const tw = Math.max(w1, w2) + 14, th = 30;
+    const bx = Math.min(Math.max(cx - tw / 2, x0), x1 - tw);
+    let by = cy + 10; if (by + th > H - padB) by = cy - th - 10; if (by < padT) by = padT;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, 5); else ctx.rect(bx, by, tw, th);
+    ctx.fill();
+    ctx.fillStyle = "#171204";
+    ctx.textAlign = "center";
+    ctx.font = "bold 11px sans-serif";
+    ctx.fillText(price, bx + tw / 2, by + 13);
+    ctx.font = "9px sans-serif";
+    ctx.fillText(caption, bx + tw / 2, by + 25);
+    ctx.font = "10px sans-serif";
+  };
+  // 开始价：金色虚线 + 左端标签
+  if (buf.lockPrice) {
+    const yy = y(buf.lockPrice);
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "#d8b45a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
+    ctx.setLineDash([]);
+    tag(tx(buf.startTime), yy, fmtPrice(buf.lockPrice).replace("$", ""), t("chart.startPrice"), "#e8e13a");
+  }
+  // 结束价（冻结线）：虚线 + 右端标签
+  if (buf.closePrice) {
+    const yy = y(buf.closePrice);
+    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = "rgba(238,241,248,.6)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
+    ctx.setLineDash([]);
+    tag(tx(buf.lockTime), yy, fmtPrice(buf.closePrice).replace("$", ""), t("chart.endPrice"), "#e8e13a");
+  }
+  // 线体：中值滤波 + 加权平滑（与竞品同款平滑发光线）
+  const med = pts.map((k, i) => {
+    const a = pts[Math.max(0, i - 1)].p, b = pts[Math.min(pts.length - 1, i + 1)].p;
+    const s3 = [a, k.p, b].sort((x, z) => x - z);
+    return { t: k.t, p: s3[1] };
+  });
+  const sm = med.map((k, i) => {
+    const a = med[Math.max(0, i - 1)], b = med[Math.min(med.length - 1, i + 1)];
+    return { t: k.t, p: (a.p + k.p * 2 + b.p) / 4 };
+  });
+  const lockedCol = ended || !live || S.phase === "locked";
+  const lineCol = lockedCol ? "#d7f75b" : "#ffa02e";
+  const XY = sm.map((k) => [tx(k.t), y(k.p)]);
+  ctx.beginPath();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.moveTo(XY[0][0], XY[0][1]);
+  for (let i = 1; i < XY.length - 1; i++) {
+    const mx = (XY[i][0] + XY[i + 1][0]) / 2, my = (XY[i][1] + XY[i + 1][1]) / 2;
+    ctx.quadraticCurveTo(XY[i][0], XY[i][1], mx, my);
+  }
+  ctx.lineTo(XY[XY.length - 1][0], XY[XY.length - 1][1]);
+  ctx.strokeStyle = lineCol;
+  ctx.lineWidth = 2.6;
+  ctx.shadowColor = lineCol;
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // 线下渐变填充
+  ctx.lineTo(XY[XY.length - 1][0], H - padB);
+  ctx.lineTo(XY[0][0], H - padB);
+  ctx.closePath();
+  const fg = ctx.createLinearGradient(0, padT, 0, H - padB);
+  if (lockedCol) { fg.addColorStop(0, "rgba(215,247,91,.30)"); fg.addColorStop(1, "rgba(215,247,91,0)"); }
+  else { fg.addColorStop(0, "rgba(255,160,46,.30)"); fg.addColorStop(1, "rgba(255,160,46,0)"); }
+  ctx.fillStyle = fg;
+  ctx.fill();
+  // 线尾：圆点 + 右轴价签 + 秒数气泡（气泡秒数 = S.cdSec，已按本局口径钳制）
+  const hx = XY[XY.length - 1][0], hy = XY[XY.length - 1][1];
+  const lastP = pts[pts.length - 1].p;
+  ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fill();
+  ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fillStyle = "#fff"; ctx.fill();
+  const pv = fmtPrice(lastP).replace("$", "");
+  ctx.font = "bold 10px sans-serif";
+  const pw = ctx.measureText(pv).width + 8;
+  ctx.fillStyle = "#f5c542";
+  ctx.fillRect(x1 + 2, hy - 8, pw, 16);
+  ctx.fillStyle = "#171204";
+  ctx.textAlign = "center";
+  ctx.fillText(pv, x1 + 2 + pw / 2, hy);
+  if (live && !ended && S.cdSec !== null && S.cdSec !== undefined && S.cdSec >= 0) {
+    const label = S.cdSec + "s";
+    ctx.font = "bold 12px sans-serif";
+    const bw = ctx.measureText(label).width + 18;
+    const bh = 21;
+    const bx = Math.max(x0, Math.min(hx - bw / 2, x1 - bw));
+    const by = Math.max(2, hy - 40);
+    const urgentCd = S.cdSec <= 5 && S.phase === "betting";
+    const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
+    if (lockedCol) { grd.addColorStop(0, "#eef06a"); grd.addColorStop(1, "#ccd12e"); }
+    else if (urgentCd) { grd.addColorStop(0, "#ff6b81"); grd.addColorStop(1, "#d61c4e"); }
+    else { grd.addColorStop(0, "#ffb03a"); grd.addColorStop(1, "#f2762e"); }
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 7); else ctx.rect(bx, by, bw, bh);
+    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(hx - 4.5, by + bh); ctx.lineTo(hx + 4.5, by + bh); ctx.lineTo(hx, by + bh + 5.5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = lockedCol ? "#171204" : "#fff";
+    ctx.textAlign = "center";
+    ctx.fillText(label, bx + bw / 2, by + bh / 2 + 0.5);
+  }
+  // 横轴时间：本局起止
+  ctx.fillStyle = "#5d6a86";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "left";
+  const fmtT = (ms) => new Date(ms).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false });
+  ctx.fillText(fmtT(buf.startTime * 1000), x0, H - 8);
+  ctx.textAlign = "right";
+  ctx.fillText(fmtT(buf.lockTime * 1000), x1, H - 8);
+}
 function drawLine() {
   const cv = $("kline");
   if (!cv) return;
@@ -2993,6 +3417,9 @@ function drawLine() {
   const W = cv.width / dpr, H = cv.height / dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
+  // 图表返工：有本局采样缓冲时只画本局线（进行中/冻结），不走下面的旧滚动窗口拼点逻辑
+  const _buf = displayBuf();
+  if (_buf) { drawRoundLine(ctx, W, H, _buf); return; }
   const em = $("chartEmpty");
   const now = Date.now();
   const win = S.viewWin;
@@ -3549,7 +3976,16 @@ function init() {
   setInterval(tickRound, 1000);
   setInterval(refreshPools, 15000);
   setInterval(() => { if (S.contract) discoverRound().then(() => { refreshPools(); }); }, 15000);
-  setInterval(() => { if (KLINE.dirty || S.chartType === "line") { drawKline(); KLINE.dirty = false; } }, 500);
+  // 逐 tick 丝滑重绘（验收红线）：采样点一变就标脏，rAF 按动画帧重绘线图，
+  // 线的动势与 tick 同步，不再 500ms 一跳；K 线模式保留 500ms 节奏。
+  (function rafLoop() {
+    if (S.chartType === "line" && KLINE.dirty) { drawKline(); KLINE.dirty = false; }
+    requestAnimationFrame(rafLoop);
+  })();
+  setInterval(() => { if (S.chartType !== "line" && KLINE.dirty) { drawKline(); KLINE.dirty = false; } }, 500);
+  // 慢源补点：每 1 秒用当前显示价给本局缓冲补一个点（无新价时即上一价平线段），
+  // 保证任何品类一局采样点 ≥30、线不断（快源逐 tick 落点时此补点只刷新尾点）。
+  setInterval(() => { if (S.price) sampleRoundBuf(S.price); }, 1000);
   window.addEventListener("resize", () => { sizeKline(); drawKline(); });
 }
 document.addEventListener("DOMContentLoaded", init);
@@ -3571,6 +4007,7 @@ setTimeout(function () {
     <button class="mode-opt" id="sheetMid"><span data-i18n-html="mode.mid">🕒 3 分钟进阶<small>每 3 分钟一局 · 攻守兼备</small></span><span class="mo-tag" data-i18n="mode.current">当前</span></button>
     <button class="mode-opt" id="sheetClassic"><span data-i18n-html="mode.classic">🕐 5 分钟经典<small>每 5 分钟一局 · 更从容</small></span><span class="mo-tag" data-i18n="mode.current">当前</span></button>
     <div class="sheet-rules" data-i18n="mode.rules">选方向 → 到点锁价 → 结算比开始价高低定胜负，赢家分输家奖池（平台费 5%）。平局退本金。</div>
+    <div class="sheet-settings"><span class="ss-label">音乐 / 特效</span><button class="mini-btn" id="bgmBtn" title="音乐开关 / Music">🔊</button><input type="range" id="bgmVol" class="vol" min="0" max="100" value="80" aria-label="音量 / Volume"><button class="mini-btn" id="fxBtn" title="特效开关 / Effects">✨ 特效</button></div>
     <button class="sheet-close" id="sheetClose" data-i18n="mode.close">关闭</button>
   </div>
 </div>
