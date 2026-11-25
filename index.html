@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round25">
+<meta name="qk-build" content="round26">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -593,18 +593,19 @@ html{scrollbar-gutter:stable}
   .road-card{flex:0 0 auto;margin-top:0;padding:6px 10px 8px}
   .road-head{margin:0}
   .road-head h2{font-size:12px}
-  .road-grid{display:grid !important;grid-auto-flow:column !important;grid-template-rows:repeat(2,22px) !important;grid-auto-columns:22px !important;gap:4px !important;margin-top:4px !important;height:48px !important;max-height:48px !important;overflow-x:auto !important;overflow-y:hidden !important}
+  .road-grid{display:grid !important;grid-auto-flow:column !important;grid-template-rows:repeat(2,22px) !important;grid-auto-columns:22px !important;gap:4px !important;margin-top:2px !important;height:48px !important;max-height:48px !important;overflow-x:auto !important;overflow-y:hidden !important}
   .road-grid .rdot{width:22px !important;height:22px !important}
-  #chartCard{flex:1 1 auto;min-height:228px;max-height:280px;display:flex;flex-direction:column;margin-top:4px;margin-left:-14px;margin-right:-14px}
-  .pair-card{margin:6px 0;padding:8px 12px}
-  .bet-panel{margin-top:8px;padding:10px 12px 12px}
+  #chartCard{flex:1 1 auto;min-height:280px;max-height:320px;display:flex;flex-direction:column;margin-top:4px;margin-left:-14px;margin-right:-14px}
+  .pair-card{margin:6px 0;padding:6px 12px}
+  .bet-panel{margin-top:8px;padding:8px 12px 12px}
   .cur-switch{margin:0 0 6px}
-  .cur-btn{padding:7px 0}
+  .cur-btn{padding:4px 0;font-size:12.5px}
   .amount-row{margin-top:8px}
-  .chips{margin-top:7px}
-  .chip{padding:6px 4px}
-  .side-pick{margin-top:8px}
-  .side-btn{padding:11px 8px}
+  .chips{margin-top:5px}
+  .chip{padding:3px 4px;font-size:11.5px}
+  .amount-input input{padding-top:5px;padding-bottom:5px;font-size:17px}
+  .side-pick{margin-top:6px}
+  .side-btn{padding:9px 8px}
   .chart-wrap{flex:1 1 auto;min-height:0}
   .chart-wrap.si-mode .si-panel{min-height:0}
   #kline{position:absolute;left:0;top:0;width:100%;height:100% !important}
@@ -4028,6 +4029,8 @@ function drawLine() {
   const padR = 6, padL = 6, padT = 18, padB = 30; // 底部 30px：上行放开始/结束旗标，下行放时间
   const winPrices = [];
   for (const k of pts) if (k.t >= t0) winPrices.push(k.p);
+  // 纵轴只看最近 60% 的点：早段的高低点不再把画面压扁，线贴着当前行情走
+  if (winPrices.length > 40) winPrices.splice(0, Math.floor(winPrices.length * 0.4));
   let hi = -Infinity, lo = Infinity;
   if (winPrices.length >= 8) {
     const srt = [...winPrices].sort((a, b) => a - b);
@@ -4041,8 +4044,7 @@ function drawLine() {
   if (!isFinite(hi)) { hi = S.price; lo = S.price; }
   if (S.chartLock) { hi = Math.max(hi, S.chartLock.price); lo = Math.min(lo, S.chartLock.price); }
   hi = Math.max(hi, S.price); lo = Math.min(lo, S.price);
-  // 轴必须盖住全部钳制后的画线点（含当前价），线不出界、不切边
-  for (const k of pts) { if (k.t >= t0) { if (k.p > hi) hi = k.p; if (k.p < lo) lo = k.p; } }
+  // 帧外早段点由画布自然裁剪，不再为了盖住全部点把纵轴拉宽
   const padV = Math.max((hi - lo) * 0.07, S.price * 0.000025);
   hi += padV; lo -= padV;
   /* 纵轴锚定网格（第七轮，主代理直改）：旧逻辑 S.axis 每帧按 0.22 向数据范围
@@ -4052,12 +4054,28 @@ function drawLine() {
      按本局窗口+品类+模式隔离；局内只许整步外扩、永不收缩，已出现的刻度价位
      整局永不改变（扩围只在上/下缘新增刻度）。 */
   const _axKey = (win && win.start ? win.start : 0) + ":" + S.assetId + ":" + S.mode;
+  const _step = (S.axis && S.axis.key === _axKey) ? S.axis.step : niceGridStep(S.price * 0.0005);
+  let _tLo = Math.floor(lo / _step), _tHi = Math.ceil(hi / _step);
+  if (_tHi - _tLo < 4) { const _c = Math.round((lo + hi) / 2 / _step); _tLo = _c - 2; _tHi = _c + 2; }
+  if (_tHi - _tLo > 9) {
+    const _c = Math.round(S.price / _step); _tLo = _c - 4; _tHi = _c + 5;
+    if (S.chartLock) { const _lk = Math.round(S.chartLock.price / _step);
+      if (_lk < _tLo) { _tHi -= (_tLo - _lk); _tLo = _lk; }
+      if (_lk > _tHi) { _tLo += (_lk - _tHi); _tHi = _lk; } }
+  }
   if (!S.axis || S.axis.key !== _axKey) {
-    const _step = niceGridStep(S.price * 0.0005);
-    S.axis = { key: _axKey, step: _step, gLo: Math.floor(lo / _step), gHi: Math.ceil(hi / _step) };
+    S.axis = { key: _axKey, step: _step, gLo: _tLo, gHi: _tHi, mv: 0 };
   } else {
-    if (lo < S.axis.gLo * S.axis.step) S.axis.gLo = Math.floor(lo / S.axis.step);
-    if (hi > S.axis.gHi * S.axis.step) S.axis.gHi = Math.ceil(hi / S.axis.step);
+    const ax = S.axis, nowMs = Date.now();
+    const _out = S.price < ax.gLo * _step || S.price > ax.gHi * _step ||
+      (S.chartLock && (S.chartLock.price < ax.gLo * _step || S.chartLock.price > ax.gHi * _step));
+    if (_out) { ax.gLo = _tLo; ax.gHi = _tHi; ax.mv = nowMs; }
+    else if (nowMs - (ax.mv || 0) >= 250) {
+      let moved = false;
+      if (ax.gLo < _tLo) { ax.gLo++; moved = true; } else if (ax.gLo > _tLo) { ax.gLo--; moved = true; }
+      if (ax.gHi < _tHi) { ax.gHi++; moved = true; } else if (ax.gHi > _tHi) { ax.gHi--; moved = true; }
+      if (moved) ax.mv = nowMs;
+    }
   }
   hi = S.axis.gHi * S.axis.step; lo = S.axis.gLo * S.axis.step;
   const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
