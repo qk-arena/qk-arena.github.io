@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round5">
+<meta name="qk-build" content="round6">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -1142,7 +1142,7 @@ const S = {
   source: null, sourceLabel: "", srcKey: "src.connecting",
   trades: [],                 // {t, isBuy, usd}
   lockPrice: null, closePrice: null,
-  roundId: null, phase: "betting",
+  roundId: null, roundAssetId: null, roundMode: null, phase: "betting", // roundAssetId/roundMode：S.roundId 的归属（第六轮 J1），与 roundId 同步赋值/清空
   side: "long",
   pools: { long: 0, short: 0 },   // 本局奖池（合约未部署时为本机演示池）
   poolsLive: false,
@@ -1701,6 +1701,7 @@ function setAsset(id) {
   chainRound = null; nextChainRound = null; lastChainId = null; lastRoundId = null; lastPhase = null;
   roundBuf = null; frozenBuf = null; // 采样缓冲按品类隔离：切品类全部清掉，绝不串图
   S.lockPrice = null; S.closePrice = null; S.chartLock = null; S.chartClose = null; S.chartResult = null;
+  S.roundId = null; S.roundAssetId = null; S.roundMode = null; S.pools = { long: 0, short: 0 }; // 第六轮 J1：本局归属与池子同步清掉——新品类局补上之前，本局块只许占位，不许挂旧品类的局号/池子
   S.price = null; S._realSeen = false; S.ticks = []; S.candles = []; S.trades = [];
   S.axis = null; // 旧画线路径的全局轴状态也必须清（不清会把上一品类的量级带进新图，缺陷 A/B）
   if (typeof KLINE !== "undefined") KLINE.dirty = true;
@@ -1946,6 +1947,7 @@ function tickRound() {
     if (lastRoundId !== null) settlePrevRound(lastRoundId);
     lastRoundId = r.roundId;
     S.roundId = r.roundId;
+    S.roundAssetId = S.assetId; S.roundMode = S.mode; // 本地局由当前视图参数生成，归属即当前视图（第六轮 J1）
     S.lockPrice = null;
     S.closePrice = null;
     S.pools = { long: 0, short: 0 };
@@ -2016,6 +2018,7 @@ function tickChainRound() {
     }
     lastChainId = r.id;
     S.roundId = r.id;
+    S.roundAssetId = r.assetId; S.roundMode = modeName(r.mode); // 本局归属（第六轮 J1）：renderRecords 本局块据此校验视图一致性
     S.lockPrice = null;
     S.closePrice = null;
     S.pools = {
@@ -2579,7 +2582,7 @@ async function doBet() {
     const bettable = (r) => r && r.status === 0 && Math.floor(Date.now() / 1000) >= r.startTime && Math.floor(Date.now() / 1000) < r.lockTime - CONFIG.BET_CUTOFF_SEC;
     if (!bettable(chainRound) || S.roundId !== chainRound.id) {
       await discoverRound();
-      if (chainRound) S.roundId = chainRound.id;
+      if (chainRound) { S.roundId = chainRound.id; S.roundAssetId = chainRound.assetId; S.roundMode = modeName(chainRound.mode); } // 归属同步（第六轮 J1）
       if (!bettable(chainRound)) { toast(t("toast.roundSwitched")); return; }
     }
   }
@@ -2663,8 +2666,18 @@ function renderRecords() {
     }).join("");
   } else if (recTab === "round") {
     const cur = latestViewRec(); // 第四轮 G2：上一局块只认当前品类+模式的最近已结算局（旧版拿 S.rounds[0] 全局最新，切品类后仍显示旧品类结果且切换时不重渲染）
-    const mine = S.myBets.filter((b) => b.roundId === S.roundId);
-    list.innerHTML = '<div class="rec"><div class="rec-top"><span>' + roundTitle(S.roundId) + '</span><span>' + (S.phase === "betting" ? t("rec.betting") : t("rec.locked")) + '</span></div><div class="rec-sub">' + t("price.lock") + ' ' + fmtPriceFor(S.lockPrice, S.assetId) + ' · ' + t("price.cur") + ' ' + fmtPriceFor(S.price, S.assetId) + ' · ' + t("pool.long") + ' ' + fmt(S.pools.long) + ' / ' + t("pool.short") + ' ' + fmt(S.pools.short) + ' $SI</div><div class="rec-sub">' + t("rec.myBetLine", { x: mine.length ? mine.map((b) => (b.side === "long" ? t("bet.long") + " " : t("bet.short") + " ") + fmt(b.amount) + " $SI").join("，") : t("rec.none") }) + '</div></div>'
+    // 第六轮 J1：本局块视图一致性校验——S.roundId 的归属（roundAssetId/roundMode）
+    // 与当前视图对不上时（切品类/切模式后新局还没补上），本局块只渲染占位
+    // （局号 —、状态加载中、价格/池子 —），绝不把旧品类的局号、开始价、现价、
+    // 池子挂到新品类名下（旧版 setAsset/setMode 不清 roundId/pools，tickRound/
+    // discoverRound 补上新局之前一直拿旧品类数据渲染，线上实测切回 BTC 后
+    // 30 秒还挂着 SI 的局号与价格）。
+    const viewOk = S.roundId != null && S.roundAssetId === S.assetId && S.roundMode === S.mode;
+    const mine = viewOk ? S.myBets.filter((b) => b.roundId === S.roundId) : [];
+    const curBlock = viewOk
+      ? '<div class="rec"><div class="rec-top"><span>' + roundTitle(S.roundId) + '</span><span>' + (S.phase === "betting" ? t("rec.betting") : t("rec.locked")) + '</span></div><div class="rec-sub">' + t("price.lock") + ' ' + fmtPriceFor(S.lockPrice, S.assetId) + ' · ' + t("price.cur") + ' ' + fmtPriceFor(S.price, S.assetId) + ' · ' + t("pool.long") + ' ' + fmt(S.pools.long) + ' / ' + t("pool.short") + ' ' + fmt(S.pools.short) + ' $SI</div><div class="rec-sub">' + t("rec.myBetLine", { x: mine.length ? mine.map((b) => (b.side === "long" ? t("bet.long") + " " : t("bet.short") + " ") + fmt(b.amount) + " $SI").join("，") : t("rec.none") }) + '</div></div>'
+      : '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: "—" }) + '</span><span>' + t("chart.waiting") + '</span></div><div class="rec-sub">' + t("price.lock") + ' — · ' + t("price.cur") + ' — · ' + t("pool.long") + ' — / ' + t("pool.short") + ' — $SI</div><div class="rec-sub">' + t("rec.myBetLine", { x: t("rec.none") }) + '</div></div>';
+    list.innerHTML = curBlock
       + (cur ? '<div class="rec"><div class="rec-top"><span>' + t("rec.prevRound", { id: cur.id }) + '</span><span>' + (cur.result === "long" ? t("rec.longWin") : cur.result === "short" ? t("rec.shortWin") : cur.result === "draw" ? t("rec.drawR") : "—") + '</span></div><div class="rec-sub">' + t("rec.lockSettle", { lock: fmtPriceFor(cur.lock, cur.assetId), close: fmtPriceFor(cur.close, cur.assetId) }) + '</div></div>' : "");
   } else {
     if (!S.rounds.length) { list.innerHTML = '<div class="empty">' + t("rec.noHistory") + '</div>'; return; }
@@ -3256,6 +3269,15 @@ function drawCandles() {
   if (S.price) { hi = Math.max(hi, S.price); lo = Math.min(lo, S.price); }
   const rng0 = (hi - lo) || 1;
   hi += rng0 * 0.06; lo -= rng0 * 0.06;
+  // 第六轮 J2：纵轴锚定网格（与 drawRoundLine 同款 niceGridStep）：窗口上下界
+  // 向外取整到步长整数倍，刻度只画步长整数倍价位、相邻差恒等于步长；步长按
+  // 窗口宽度选取并保证刻度条数 ≤8（窗口太宽就翻倍步长再取整）。旧四档插值
+  // （lo+(hi-lo)*i/3）窗口高低一变全部刻度跟着变值，已删除。蜡烛窗口本身仍
+  // 可滚动，要求只是刻度值永远落在网格价位上。
+  let gStep = niceGridStep((hi - lo) / 5);
+  let gLo = Math.floor(lo / gStep), gHi = Math.ceil(hi / gStep);
+  while (gHi - gLo > 7) { gStep *= 2; gLo = Math.floor(lo / gStep); gHi = Math.ceil(hi / gStep); }
+  lo = gLo * gStep; hi = gHi * gStep;
   const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
   const x0 = padL, x1 = W - padR;
   const cw = (x1 - x0) / KLINE.max;
@@ -3265,12 +3287,12 @@ function drawCandles() {
   };
   ctx.font = "10px sans-serif";
   ctx.textBaseline = "middle";
-  // 网格 + 右侧价格刻度
+  // 网格 + 右侧价格刻度（第六轮 J2）：只画步长整数倍价位，相邻差恒等于步长
   ctx.strokeStyle = "rgba(42,50,64,.55)";
   ctx.fillStyle = "#8b96ad";
   ctx.lineWidth = 1;
-  for (let i = 0; i <= 3; i++) {
-    const v = lo + (hi - lo) * i / 3;
+  for (let k = gLo; k <= gHi; k++) {
+    const v = k * gStep;
     const yy = y(v);
     ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x1, yy); ctx.stroke();
     ctx.textAlign = "left";
@@ -3631,6 +3653,11 @@ function drawLine() {
   // 图表返工：有本局采样缓冲时只画本局线（进行中/冻结），不走下面的旧滚动窗口拼点逻辑
   const _buf = displayBuf();
   if (_buf) { drawRoundLine(ctx, W, H, _buf); return; }
+  // 第六轮 J4：无本局缓冲时只显示等待态，绝不回退下面的旧滚动窗口拼点线
+  // （旧路径纵轴是四档插值、线是历史采样拼点，是历轮「刻度乱变」的残留入口；
+  // 以下旧代码保留备查，禁止恢复启用。）
+  const _em0 = $("chartEmpty"); if (_em0) _em0.classList.remove("hide");
+  return;
   const em = $("chartEmpty");
   const now = Date.now();
   const win = S.viewWin;
@@ -4119,6 +4146,7 @@ function setMode(m) {
   if (S.contract && lastChainId !== null && lastChainId !== S.lastSettledId) pendingSettleId = lastChainId; // 旧模式未结的局登记待结算（F6）
   chainRound = null; lastChainId = null;
   lastRoundId = null; lastPhase = null;
+  S.roundId = null; S.roundAssetId = null; S.roundMode = null; S.pools = { long: 0, short: 0 }; // 第六轮 J1：同 setAsset，切模式先清本局归属与池子（在 renderRecords 之前）
   if (S.contract) discoverRound();
   tickRound();
   refreshResultBarForView(); // 结算条跟随模式（F4）
