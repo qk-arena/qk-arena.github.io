@@ -3653,11 +3653,6 @@ function drawLine() {
   // 图表返工：有本局采样缓冲时只画本局线（进行中/冻结），不走下面的旧滚动窗口拼点逻辑
   const _buf = displayBuf();
   if (_buf) { drawRoundLine(ctx, W, H, _buf); return; }
-  // 第六轮 J4：无本局缓冲时只显示等待态，绝不回退下面的旧滚动窗口拼点线
-  // （旧路径纵轴是四档插值、线是历史采样拼点，是历轮「刻度乱变」的残留入口；
-  // 以下旧代码保留备查，禁止恢复启用。）
-  const _em0 = $("chartEmpty"); if (_em0) _em0.classList.remove("hide");
-  return;
   const em = $("chartEmpty");
   const now = Date.now();
   const win = S.viewWin;
