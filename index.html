@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
+<meta name="qk-build" content="round4">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -1715,6 +1716,7 @@ function setAsset(id) {
   if (S.contract) discoverRound();
   tickRound();
   refreshResultBarForView(); // 结算条跟随品类（F4）：换成本品类+当前模式的最近结果，没有就隐藏
+  renderRecords(); // 第四轮 G2：记录区「上一局」块同步换成新品类+当前模式的（旧版切换时不重渲染，一直挂旧品类那条）
 }
 
 /* ---------------- 大倒计时（图表上方常驻） ---------------- */
@@ -2660,13 +2662,13 @@ function renderRecords() {
       return '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: b.roundId }) + ' · <span class="' + (b.side === "long" ? "rec-side-long" : "rec-side-short") + '">' + (b.side === "long" ? t("bet.long") : t("bet.short")) + '</span> <b>' + fmt(b.amount) + ' $SI</b></span>' + res + '</div><div class="rec-sub">' + new Date(b.at).toLocaleString(LANG === "zh" ? "zh-CN" : "en-US") + (b.tx ? " · " + b.tx.slice(0, 18) + "…" : t("rec.demo")) + '</div></div>';
     }).join("");
   } else if (recTab === "round") {
-    const cur = S.rounds[0];
+    const cur = (S.rounds || []).find((r) => r && r.result && r.assetId === S.assetId && r.mode === S.mode); // 第四轮 G2：上一局块只认当前品类+模式的最近已结算局（旧版拿 S.rounds[0] 全局最新，切品类后仍显示旧品类结果且切换时不重渲染）
     const mine = S.myBets.filter((b) => b.roundId === S.roundId);
-    list.innerHTML = '<div class="rec"><div class="rec-top"><span>' + roundTitle(S.roundId) + '</span><span>' + (S.phase === "betting" ? t("rec.betting") : t("rec.locked")) + '</span></div><div class="rec-sub">' + t("price.lock") + ' ' + fmtPrice(S.lockPrice) + ' · ' + t("price.cur") + ' ' + fmtPrice(S.price) + ' · ' + t("pool.long") + ' ' + fmt(S.pools.long) + ' / ' + t("pool.short") + ' ' + fmt(S.pools.short) + ' $SI</div><div class="rec-sub">' + t("rec.myBetLine", { x: mine.length ? mine.map((b) => (b.side === "long" ? t("bet.long") + " " : t("bet.short") + " ") + fmt(b.amount) + " $SI").join("，") : t("rec.none") }) + '</div></div>'
-      + (cur ? '<div class="rec"><div class="rec-top"><span>' + t("rec.prevRound", { id: cur.id }) + '</span><span>' + (cur.result === "long" ? t("rec.longWin") : cur.result === "short" ? t("rec.shortWin") : cur.result === "draw" ? t("rec.drawR") : "—") + '</span></div><div class="rec-sub">' + t("rec.lockSettle", { lock: fmtPrice(cur.lock), close: fmtPrice(cur.close) }) + '</div></div>' : "");
+    list.innerHTML = '<div class="rec"><div class="rec-top"><span>' + roundTitle(S.roundId) + '</span><span>' + (S.phase === "betting" ? t("rec.betting") : t("rec.locked")) + '</span></div><div class="rec-sub">' + t("price.lock") + ' ' + fmtPriceFor(S.lockPrice, S.assetId) + ' · ' + t("price.cur") + ' ' + fmtPriceFor(S.price, S.assetId) + ' · ' + t("pool.long") + ' ' + fmt(S.pools.long) + ' / ' + t("pool.short") + ' ' + fmt(S.pools.short) + ' $SI</div><div class="rec-sub">' + t("rec.myBetLine", { x: mine.length ? mine.map((b) => (b.side === "long" ? t("bet.long") + " " : t("bet.short") + " ") + fmt(b.amount) + " $SI").join("，") : t("rec.none") }) + '</div></div>'
+      + (cur ? '<div class="rec"><div class="rec-top"><span>' + t("rec.prevRound", { id: cur.id }) + '</span><span>' + (cur.result === "long" ? t("rec.longWin") : cur.result === "short" ? t("rec.shortWin") : cur.result === "draw" ? t("rec.drawR") : "—") + '</span></div><div class="rec-sub">' + t("rec.lockSettle", { lock: fmtPriceFor(cur.lock, cur.assetId), close: fmtPriceFor(cur.close, cur.assetId) }) + '</div></div>' : "");
   } else {
     if (!S.rounds.length) { list.innerHTML = '<div class="empty">' + t("rec.noHistory") + '</div>'; return; }
-    list.innerHTML = S.rounds.slice(0, 15).map((r) => '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: r.id }) + ' · ' + (r.mode === "speed" ? t("mode.speedShort") : r.mode === "mid" ? t("mode.midShort") : t("mode.classicShort")) + '</span><span>' + (r.result === "long" ? t("rec.longWin") : r.result === "short" ? t("rec.shortWin") : r.result === "draw" ? t("rec.drawR") : "—") + '</span></div><div class="rec-sub">' + new Date(r.at).toLocaleString(LANG === "zh" ? "zh-CN" : "en-US") + ' · ' + t("rec.lockSettle", { lock: fmtPrice(r.lock), close: fmtPrice(r.close) }) + '</div></div>').join("");
+    list.innerHTML = S.rounds.slice(0, 15).map((r) => '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: r.id }) + ' · ' + (r.mode === "speed" ? t("mode.speedShort") : r.mode === "mid" ? t("mode.midShort") : t("mode.classicShort")) + '</span><span>' + (r.result === "long" ? t("rec.longWin") : r.result === "short" ? t("rec.shortWin") : r.result === "draw" ? t("rec.drawR") : "—") + '</span></div><div class="rec-sub">' + new Date(r.at).toLocaleString(LANG === "zh" ? "zh-CN" : "en-US") + ' · ' + t("rec.lockSettle", { lock: fmtPriceFor(r.lock, r.assetId), close: fmtPriceFor(r.close, r.assetId) }) + '</div></div>').join("");
   }
 }
 
@@ -3419,9 +3421,22 @@ function drawRoundLine(ctx, W, H, buf) {
     vLo = srt[Math.floor(srt.length * 0.05)];
     vHi = srt[Math.min(srt.length - 1, Math.ceil(srt.length * 0.95) - 1)];
   } else { vLo = srt[0]; vHi = srt[srt.length - 1]; }
-  const midV = (vHi + vLo) / 2 || vHi || 1;
-  const padV = Math.max((vHi - vLo) * 0.3, Math.abs(midV) * 0.0006);
-  const tHi = vHi + padV, tLo = vLo - padV;
+  /* 纵轴下限（第四轮返工 G1）：F1 的冻结值取自开局 3 秒采样范围——那时价格
+     还没走开，范围太窄（实测冻结间距仅 23–26），晚间趋势行情一局走 $150–180
+     就冲破锁定范围触发扩围，扩完再冲、刻度局内变 2 次（实测 23.23→44.24
+     →49.67）。改法：候选范围先与「以本局开始价为中心、总高 = 开始价 0.3%
+     （上下各 0.15%）」的下限范围取并集——3 秒采样范围比下限大时用采样范围，
+     否则用下限；再按既有口径（30% / 0.06%）加边距。正常一局（波动 <0.3%）
+     全程落在冻结范围内，刻度逐字不变；冲破扩围仍作兜底保留。 */
+  let dLo = vLo, dHi = vHi;
+  if (buf.lockPrice && inBand(buf.lockPrice)) {
+    const halfF = buf.lockPrice * 0.0015;
+    if (buf.lockPrice - halfF < dLo) dLo = buf.lockPrice - halfF;
+    if (buf.lockPrice + halfF > dHi) dHi = buf.lockPrice + halfF;
+  }
+  const midV = (dHi + dLo) / 2 || dHi || 1;
+  const padV = Math.max((dHi - dLo) * 0.3, Math.abs(midV) * 0.0006);
+  const tHi = dHi + padV, tLo = dLo - padV;
   /* 纵轴整局锁定（第三轮返工 F1）：旧逻辑每帧按「当前全部采样点」重算候选
      范围再 12% 收敛——点越攒越多，分位点持续漂移，刻度间距整局都在变
      （实测 19.22→28.7、43.24→57.7），轴一动线就显得跳。新口径：
@@ -3962,6 +3977,7 @@ function showResultBar(rec, myNet, myStake) {
     document.body.appendChild(b);
   }
   clearTimeout(showResultBar._tm);
+  clearTimeout(showResultBar._clearTm);
   if (showResultBar._raf) cancelAnimationFrame(showResultBar._raf);
   const dir = rec.result === "draw" ? t("win.draw") : rec.result === "long" ? "↗ " + t("win.long") : "↘ " + t("win.short");
   const prices = (rec.lock ? fmtPriceFor(rec.lock, rec.assetId) : "—") + " → " + (rec.close ? fmtPriceFor(rec.close, rec.assetId) : "—"); // SI 8 位小数（F5）
@@ -3992,16 +4008,21 @@ function showResultBar(rec, myNet, myStake) {
     };
     showResultBar._raf = requestAnimationFrame(step);
   }
-  showResultBar._tm = setTimeout(() => b.classList.remove("show"), 5000);
+  showResultBar._tm = setTimeout(() => { b.classList.remove("show"); clearTimeout(showResultBar._clearTm); showResultBar._clearTm = setTimeout(() => { b.innerHTML = ""; }, 450); }, 5000); // 收起后清文本（G2）：文本不留在 DOM 里冒充当前结果
 }
 /* 切品类/切模式时结算条的落点（F4）：先收起当前条，再从 S.rounds 里找
    「当前品类 + 当前模式」最近一局已结算结果顶上；没有就保持隐藏。
    旧记录（本轮之前存的）没有 assetId，无从归属，一律不顶。 */
 function refreshResultBarForView() {
   const b = $("resultBar");
-  if (b) { clearTimeout(showResultBar._tm); if (showResultBar._raf) cancelAnimationFrame(showResultBar._raf); b.classList.remove("show"); }
+  if (b) { clearTimeout(showResultBar._tm); clearTimeout(showResultBar._clearTm); if (showResultBar._raf) cancelAnimationFrame(showResultBar._raf); b.classList.remove("show"); }
   const rec = (S.rounds || []).find((r) => r && r.result && r.assetId === S.assetId && r.mode === S.mode);
   if (rec) showResultBar(rec, 0, 0);
+  /* 第四轮返工 G2：本视图没有可顶的结果时必须把条里的文本一并清掉——
+     第三轮只摘 .show 类，旧品类的「$a → $b」文本仍留在 DOM 里，页面文本
+     里一直读得到，直到下一局结算才被覆盖（线上实测切到 SI 后仍挂 BTC 的
+     $57,769.16 → $57,698.00）。同理 showResultBar 的 5 秒自动收起也要清。 */
+  else if (b) b.innerHTML = "";
 }
 
 /* ---------------- 入场仪式（纯展示闪屏，1.2 秒内自动走） ----------------
@@ -4107,6 +4128,7 @@ function setMode(m) {
   if (S.contract) discoverRound();
   tickRound();
   refreshResultBarForView(); // 结算条跟随模式（F4）
+  renderRecords(); // 第四轮 G2：记录区「上一局」块同步换成当前模式的
   const at = $("arenaTag"); if (at) at.textContent = m === "speed" ? "1分钟场" : m === "mid" ? "3分钟场" : "5分钟场";
   toast(m === "speed" ? t("toast.modeSpeed") : m === "mid" ? t("toast.modeMid") : t("toast.modeClassic"));
   syncModeSheet();
