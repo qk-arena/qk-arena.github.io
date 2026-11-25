@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round19">
+<meta name="qk-build" content="round20">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -1574,18 +1574,91 @@ async function poolHumanPrice(provider, pairAddr, baseAddr) {
 } // PancakeSwap v2 SI/SPCXB 主池（DexScreener 一次性选定，流动性最高）
 let assetPollTimer = null;
 const _feedCache = {};
+/* round20: 只读节点池 + 自动探活切换。round19 线上诊断抓现行：写死的
+   CONFIG.CHAIN_RPC（data-seed-prebsc-1-s1）在部分网络环境下网络层直接连不上
+   （21 次 latestRoundId 全 Failed to fetch），全页只读调用跟着全灭。
+   入池节点全部 curl 实测 eth_chainId=0x61（BSC 测试网）：
+   publicnode 两域名、data-seed 三个官方种子节点。钱包 rpcUrls 配置不走这里。 */
+const READ_RPCS = [
+  "https://bsc-testnet-rpc.publicnode.com",
+  "https://bsc-testnet.publicnode.com",
+  "https://data-seed-prebsc-1-s1.binance.org:8545",
+  "https://data-seed-prebsc-2-s1.binance.org:8545",
+  "https://data-seed-prebsc-1-s2.binance.org:8545",
+];
+let _readProvider = null;   // 已探活选中的只读 provider（缓存）
+let _readRpcUrl = "";       // 它对应的节点 URL
+let _readProbe = null;      // 进行中的探活 Promise（并发调用共用一次探活）
+let _readNetFails = 0;      // 连续网络层失败计数（Failed to fetch 类）
+function _rpcHost(u) { try { return new URL(u).hostname; } catch (e) { return String(u); } }
+function _isNetFetchErr(e) {
+  const m = String((e && e.message) || e || "");
+  return /failed to fetch|networkerror|fetch failed|load failed|network request failed/i.test(m) || (e && e.code === "NETWORK_ERROR");
+}
+/* 只读调用成功/失败打点：成功清零计数；网络层失败连续 3 次作废缓存，下次调用重新探活换节点 */
+function noteReadOk() { _readNetFails = 0; }
+function noteReadError(e) {
+  if (!_isNetFetchErr(e)) return;
+  _readNetFails++;
+  if (_readNetFails >= 3) invalidateReadProvider("netFails>=3@" + _rpcHost(_readRpcUrl));
+}
+function invalidateReadProvider(why) {
+  const hadCache = !!(_readProvider || _readContract);
+  _readProvider = null; _readRpcUrl = ""; _readProbe = null; _readNetFails = 0;
+  _readContract = null; // 绑定旧 provider 的只读合约一并作废，下次用新节点重建（getter 式重建，不抓死实例）
+  if (hadCache) { try { statsDbg("rpcInvalidate", false, why || ""); } catch (e) {} } // 缓存本就空时不重复打点，避免诊断行刷屏
+}
+async function _probeOneReadRpc(url) {
+  const p = new ethers.JsonRpcProvider(url);
+  await Promise.race([
+    p.getBlockNumber(),
+    new Promise((_, rej) => setTimeout(() => rej(new Error("probe-timeout-4s")), 4000)),
+  ]);
+  return p;
+}
+async function getReadProvider() {
+  if (_readProvider) return _readProvider;
+  if (typeof ethers === "undefined") return null;
+  if (_readProbe) return _readProbe;
+  _readProbe = (async () => {
+    const fails = [];
+    const winner = await new Promise((resolve) => {
+      let pending = READ_RPCS.length, settled = false;
+      for (const url of READ_RPCS) {
+        _probeOneReadRpc(url).then((p) => {
+          if (!settled) { settled = true; resolve({ url: url, provider: p }); }
+        }).catch((e) => {
+          fails.push(_rpcHost(url) + ":" + String((e && e.message) || e).slice(0, 40));
+          if (--pending === 0 && !settled) resolve(null);
+        });
+      }
+    });
+    _readProbe = null;
+    if (winner) {
+      _readProvider = winner.provider; _readRpcUrl = winner.url; _readNetFails = 0;
+      /* TEMP-DIAG: 探活结果打点——选中哪个节点、哪些节点失败，线上复验一眼可见 */
+      try { statsDbg("rpcProbe=" + _rpcHost(winner.url), true, fails.length ? "fail:" + fails.join(" | ") : ""); } catch (e) {}
+      return _readProvider;
+    }
+    try { statsDbg("rpcProbe", false, "all-fail:" + fails.join(" | ")); } catch (e) {}
+    return null;
+  })();
+  return _readProbe;
+}
 let _readContract = null;
 function stopAssetPolls() { if (assetPollTimer) { clearInterval(assetPollTimer); assetPollTimer = null; } }
 async function resolveAssetFeed(assetId) {
   if (_feedCache[assetId]) return _feedCache[assetId];
   try {
     if (!_readContract) {
-      const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+      const rp = await getReadProvider();
+      if (!rp) return null;
       _readContract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, BATTLE_ABI, rp);
     }
     const a = await _readContract.assetFeeds(assetId);
+    noteReadOk();
     if (a && a !== ethers.ZeroAddress) { _feedCache[assetId] = a; return a; }
-  } catch (e) {}
+  } catch (e) { noteReadError(e); }
   return null;
 }
 function usMarketOpenFE(atMs) {
@@ -1663,7 +1736,8 @@ function startAssetFeeds(id) {
       try {
         const fa = await resolveAssetFeed(0);
         if (!fa || g !== gen) return;
-        const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+        const rp = await getReadProvider();
+        if (!rp) return;
         const fc = new ethers.Contract(fa, FEED_ABI, rp);
         const d = await fc.latestRoundData();
         const pr = Number(d[1]) / 1e8;
@@ -1745,7 +1819,8 @@ function startAssetFeeds(id) {
       try {
         const feedAddr = await resolveAssetFeed(6);
         if (!feedAddr) return;
-        const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+        const rp = await getReadProvider();
+        if (!rp) return;
         const fc = new ethers.Contract(feedAddr, FEED_ABI, rp);
         const d = await fc.latestRoundData();
         const pr = Number(d[1]) / 1e8;
@@ -4167,7 +4242,8 @@ async function readContract() {
   if (S.contract) return S.contract;
   if (typeof ethers === "undefined" || !CONFIG.CONTRACT_ADDRESS) return null;
   if (!_readContract) {
-    const rp = new ethers.JsonRpcProvider(CONFIG.CHAIN_RPC);
+    const rp = await getReadProvider();
+    if (!rp) return null;
     _readContract = new ethers.Contract(CONFIG.CONTRACT_ADDRESS, BATTLE_ABI, rp);
   }
   return _readContract;
@@ -4201,7 +4277,7 @@ async function refreshChainStats() {
   if (chainStatsBusy) return;
   chainStatsBusy = true;
   try {
-    /* TEMP-DIAG step: readContract（eth_call 走 CONFIG.CHAIN_RPC / data-seed） */
+    /* TEMP-DIAG step: readContract（round20 起 eth_call 走 getReadProvider 节点池探活，不再写死单节点） */
     let c = null;
     try { c = await readContract(); } catch (e) { statsDbg("readContract", false, e); }
     if (!c) { // ethers 还没加载完 / 合约未配置：记录并排一次重试（人数已拆为独立触发，不在这里顺带调）
@@ -4221,9 +4297,17 @@ async function refreshChainStats() {
        逐个调用各自容错，统计成功个数，21 个全灭才记失败） */
     let gLatest = 0, lrOk = 0, lrErr = null;
     for (const m of [0, 1, 2]) for (let a = 0; a <= 6; a++) {
-      try { gLatest = Math.max(gLatest, Number(await c.latestRoundId(m, a))); lrOk++; } catch (e) { lrErr = e; }
+      try { gLatest = Math.max(gLatest, Number(await c.latestRoundId(m, a))); lrOk++; noteReadOk(); } catch (e) { lrErr = e; noteReadError(e); }
     }
     statsDbg("latestRoundId=" + gLatest + "(" + lrOk + "/21)", lrOk > 0, lrOk > 0 ? "" : lrErr);
+    /* round20 完整性修正：21 次全灭（多为节点网络层连不上）不许再往下走记成
+       chainDone rounds=0「成功」——作废只读节点缓存触发重新探活换节点，走既有重试。 */
+    if (lrOk === 0) {
+      invalidateReadProvider("latestRoundId 0/21");
+      chainStatsBusy = false;
+      scheduleStatsRetry();
+      return;
+    }
     /* TEMP-DIAG step: getRoundScan（round19 容错：10 个一批、批间 100ms、单批失败重试 2 次且每次重建调用——
        旧版 20 个一批且重试时复用同一批已拒绝的 Promise，重试永远无效，一批失败就断扫；
        每批成功立刻把 cache 增量赋值给 S.chainStats 并渲染，部分成功先出部分数，不等全扫完） */
