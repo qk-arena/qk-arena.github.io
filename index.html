@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="乾坤战场 QIANKUN ARENA — $SI 链上下注：1 分钟极速 / 5 分钟经典，赢家分池，纯链上结算。">
-<meta name="qk-build" content="round11">
+<meta name="qk-build" content="round13">
 <title>乾坤战场 · QIANKUN ARENA</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%230a0f1e%22/%3E%3Ctext%20x%3D%2232%22%20y%3D%2244%22%20font-size%3D%2234%22%20text-anchor%3D%22middle%22%20fill%3D%22%23e8b64c%22%20font-family%3D%22serif%22%20font-weight%3D%22bold%22%3E%E4%B9%BE%3C/text%3E%3C/svg%3E">
 <!-- ethers 改为 JS 动态加载（见 loadEthers）：同步外链在国内可能卡住解析，导致黑屏；head 里不再放同步外链脚本 -->
@@ -353,8 +353,7 @@ input{font-family:inherit}
 @keyframes rbWinGlow{0%,100%{box-shadow:0 0 0 rgba(245,197,66,0)}50%{box-shadow:0 0 34px rgba(245,197,66,.9)}}
 .cd321{display:none !important}
 .big-cd-time{display:inline-block}
-.big-cd.cd-urgent .big-cd-time{color:#ff5d47;animation:cdUrgentPulse .5s ease-in-out infinite alternate}
-@keyframes cdUrgentPulse{from{transform:scale(1)}to{transform:scale(1.14)}}
+
 .cd321{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:5}
 .cd321.show{display:flex}
 .cd321-num{font-size:64px;font-weight:900;line-height:1;color:#f5c542;text-shadow:0 0 24px rgba(245,197,66,.55),0 2px 0 rgba(0,0,0,.35)}
@@ -2751,12 +2750,11 @@ function flashScreen() {
   f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
 }
 function updateCd321(left) {
-  // 倒计时改版（用户 2026-11-26：原来的居中大数字太丑）：不再弹 3·2·1 大字；
-  // 最后 5 秒改由顶栏倒计时变红脉冲 + 线尾秒数气泡变红来提示。
+  // 倒计时改版（用户 2026-11-26）：不弹居中大数字、不搞红色报警；
+  // 倒计时只在线尾金色气泡上做（对齐竞品），最后 5 秒气泡转亮金色 + 柔光脉冲。
   const el = $("cd321");
   if (el) el.classList.remove("show");
-  const cd = $("bigCd");
-  if (cd) cd.classList.toggle("cd-urgent", left >= 1 && left <= 5);
+
 }
 function showRoundTransition(id) {
   if (!FX.on) return;
@@ -2785,6 +2783,8 @@ function celebrateWin() {
   // 函数保留空壳，防止旧引用报错。
 }
 function launchConfetti() {
+  // 赢局特效（改版，用户 2026-11-26：金币造型太丑）：只用金色光尘——
+  // 细小发光金粉缓缓飘落 + 结果条金光，没有金币、没有彩色纸片、不遮挡图表。
   const cv = $("confetti");
   if (!cv) return;
   const ctx = cv.getContext("2d");
@@ -2792,33 +2792,28 @@ function launchConfetti() {
   cv.width = innerWidth * dpr;
   cv.height = innerHeight * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const colors = ["#f0d48a", "#d8b45a", "#ff4d6d", "#3b82f6", "#fff3c4", "#2fbf71"];
+  const colors = ["#f5c542", "#ffe9a8", "#d8a028", "#fff3c4"];
   const parts = [];
-  for (let i = 0; i < 90; i++) {
-    parts.push({ x: Math.random() * innerWidth, y: -20 - Math.random() * 120, vx: (Math.random() - 0.5) * 2.4, vy: 2 + Math.random() * 3.2, s: 4 + Math.random() * 7, r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.2, c: colors[i % colors.length], coin: i % 3 === 0 });
+  for (let i = 0; i < 70; i++) {
+    parts.push({ x: Math.random() * innerWidth, y: -10 - Math.random() * innerHeight * 0.35, vx: (Math.random() - 0.5) * 0.5, vy: 0.7 + Math.random() * 1.6, r: 0.8 + Math.random() * 2.1, ph: Math.random() * Math.PI * 2, c: colors[i % colors.length] });
   }
   const t0 = performance.now();
   (function frame(now) {
     const el = now - t0;
     ctx.clearRect(0, 0, innerWidth, innerHeight);
+    const fade = el > 2200 ? Math.max(0, 1 - (el - 2200) / 800) : 1;
     let alive = false;
     for (const pt of parts) {
-      pt.x += pt.vx; pt.y += pt.vy; pt.r += pt.vr;
-      if (pt.y < innerHeight + 20) alive = true;
-      ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate(pt.r);
-      if (pt.coin) {
-        ctx.fillStyle = "#f0d48a";
-        ctx.beginPath(); ctx.arc(0, 0, pt.s / 2, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#8a6d1f";
-        ctx.font = "bold " + Math.max(8, Math.round(pt.s - 2)) + "px sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("$", 0, 0);
-      } else {
-        ctx.fillStyle = pt.c;
-        ctx.fillRect(-pt.s / 2, -pt.s / 4, pt.s, pt.s / 2);
-      }
+      pt.x += pt.vx + Math.sin((el / 700) + pt.ph) * 0.35; pt.y += pt.vy;
+      if (pt.y < innerHeight + 12) alive = true;
+      ctx.save();
+      ctx.globalAlpha = 0.85 * fade;
+      ctx.shadowColor = pt.c; ctx.shadowBlur = 9;
+      ctx.fillStyle = pt.c;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    if (alive && el < 4000) requestAnimationFrame(frame);
+    if (alive && el < 3200) requestAnimationFrame(frame);
     else ctx.clearRect(0, 0, innerWidth, innerHeight);
   })(t0);
 }
@@ -3621,21 +3616,24 @@ function drawRoundLine(ctx, W, H, buf) {
   if (live && !ended && S.cdSec !== null && S.cdSec !== undefined && S.cdSec >= 0) {
     const label = S.cdSec + "s";
     ctx.font = "bold 12px sans-serif";
-    const bw = ctx.measureText(label).width + 18;
-    const bh = 21;
+    const cdPulse = (S.cdSec <= 5 && S.phase === "betting") ? 1 + 0.13 * Math.max(0, 1 - (performance.now() % 1000) / 500) : 1;
+    const bw = (ctx.measureText(label).width + 18) * cdPulse;
+    const bh = 21 * cdPulse;
     const bx = Math.max(x0, Math.min(hx - bw / 2, x1 - bw));
     const by = Math.max(2, hy - 40);
     const urgentCd = S.cdSec <= 5 && S.phase === "betting";
     const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
     if (lockedCol) { grd.addColorStop(0, "#eef06a"); grd.addColorStop(1, "#ccd12e"); }
-    else if (urgentCd) { grd.addColorStop(0, "#ff6b81"); grd.addColorStop(1, "#d61c4e"); }
+    else if (urgentCd) { grd.addColorStop(0, "#ffedb0"); grd.addColorStop(0.55, "#f5c542"); grd.addColorStop(1, "#d8a028"); }
     else { grd.addColorStop(0, "#ffb03a"); grd.addColorStop(1, "#f2762e"); }
     ctx.fillStyle = grd;
+    if (urgentCd) { ctx.shadowColor = "rgba(245,197,66,.85)"; ctx.shadowBlur = 16; }
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 7); else ctx.rect(bx, by, bw, bh);
     ctx.fill();
     ctx.beginPath(); ctx.moveTo(hx - 4.5, by + bh); ctx.lineTo(hx + 4.5, by + bh); ctx.lineTo(hx, by + bh + 5.5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = lockedCol ? "#171204" : "#fff";
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = (lockedCol || urgentCd) ? "#171204" : "#fff";
     ctx.textAlign = "center";
     ctx.fillText(label, bx + bw / 2, by + bh / 2 + 0.5);
   }
@@ -3862,7 +3860,7 @@ function drawLine() {
   if (S.cdSec !== null && S.cdSec !== undefined && S.cdSec >= 0) {
     const label = S.cdSec + "s";
     ctx.font = "bold 12px sans-serif";
-    const pulse = 1 + 0.07 * Math.max(0, 1 - (performance.now() % 1000) / 500);
+    const pulse = 1 + ((S.cdSec <= 5 && S.phase !== "locked") ? 0.13 : 0.07) * Math.max(0, 1 - (performance.now() % 1000) / 500);
     const bw = (ctx.measureText(label).width + 18) * pulse;
     const bh = 21 * pulse;
     const bx = Math.max(x0, Math.min(hx - bw / 2, x1 - bw));
@@ -3870,14 +3868,16 @@ function drawLine() {
     const urgentCd = S.cdSec <= 5 && S.phase !== "locked";
     const grd = ctx.createLinearGradient(bx, by, bx, by + bh);
     if (S.phase === "locked") { grd.addColorStop(0, "#eef06a"); grd.addColorStop(1, "#ccd12e"); }
-    else if (urgentCd) { grd.addColorStop(0, "#ff6b81"); grd.addColorStop(1, "#d61c4e"); }
+    else if (urgentCd) { grd.addColorStop(0, "#ffedb0"); grd.addColorStop(0.55, "#f5c542"); grd.addColorStop(1, "#d8a028"); }
     else { grd.addColorStop(0, "#ffb03a"); grd.addColorStop(1, "#f2762e"); }
     ctx.fillStyle = grd;
+    if (urgentCd) { ctx.shadowColor = "rgba(245,197,66,.85)"; ctx.shadowBlur = 16; }
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 7); else ctx.rect(bx, by, bw, bh);
     ctx.fill();
     ctx.beginPath(); ctx.moveTo(hx - 4.5, by + bh); ctx.lineTo(hx + 4.5, by + bh); ctx.lineTo(hx, by + bh + 5.5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = S.phase === "locked" ? "#171204" : "#fff";
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = (S.phase === "locked" || urgentCd) ? "#171204" : "#fff";
     ctx.textAlign = "center";
     ctx.fillText(label, bx + bw / 2, by + bh / 2 + 0.5);
   }
