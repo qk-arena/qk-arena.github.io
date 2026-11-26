@@ -2156,7 +2156,7 @@ function sampleFlowBuf(p, tsMs) {
   // 冷启动种子：K 线采样点先把窗口铺满，一进场线就是满幅的（竞品同款），随后被真 tick 逐步顶替。
   // 只收与首笔真价偏差 ≤0.5% 的种子点：切品类后 S.linePts 可能还是旧品类的，价位对不上的一律不要。
   if (!flowPts.length && Array.isArray(S.linePts) && S.linePts.length > 1) {
-    for (const k of S.linePts) { const ts = k.t / 1000; if (k.p > 0 && wallS - ts <= 1500 && Math.abs(k.p - p) / p <= 0.005) flowPts.push({ t: ts, p: k.p }); }
+    for (const k of S.linePts) { const ts = k.t / 1000; if (k.p > 0 && ts <= wallS && wallS - ts <= 1500 && Math.abs(k.p - p) / p <= 0.005) flowPts.push({ t: ts, p: k.p }); }
     flowPts.sort((a, b) => a.t - b.t);
   }
   const pts0 = flowPts;
@@ -2164,7 +2164,7 @@ function sampleFlowBuf(p, tsMs) {
   if (pts0.length && pts0[0].t > wallS - 1400 && Array.isArray(S.linePts) && S.linePts.length > 1) {
     const head = pts0[0].t;
     const add = [];
-    for (const k of S.linePts) { const ts = k.t / 1000; if (k.p > 0 && ts < head - 1 && wallS - ts <= 1500 && Math.abs(k.p - p) / p <= 0.005) add.push({ t: ts, p: k.p }); }
+    for (const k of S.linePts) { const ts = k.t / 1000; if (k.p > 0 && ts <= wallS && ts < head - 1 && wallS - ts <= 1500 && Math.abs(k.p - p) / p <= 0.005) add.push({ t: ts, p: k.p }); }
     if (add.length) { flowPts = add.concat(pts0); flowPts.sort((a, b) => a.t - b.t); }
   }
   const pts = flowPts;
@@ -2209,7 +2209,7 @@ function mergeFlowSeeds() {
   let added = 0;
   for (const k of S.linePts) {
     const ts = k.t / 1000;
-    if (!(k.p > 0) || wallS - ts > 1500 || ts > wallS + 1) continue;
+    if (!(k.p > 0) || wallS - ts > 1500 || ts > wallS - 0.05) continue; // round36：未来戳种子一律不要（进行中 K 线的名义中点/收点会毒化尾点）
     if (Math.abs(k.p - ref) / ref > 0.005) continue;
     let loI = 0, hiI = flowPts.length;
     while (loI < hiI) { const m = (loI + hiI) >> 1; if (flowPts[m].t < ts) loI = m + 1; else hiI = m; }
@@ -2325,11 +2325,23 @@ function calNowS() { return Date.now() / 1000 + (S.clockOff || 0); }
 async function calibrateClock() {
   try {
     const rp = await getReadProvider();
-    if (!rp) return;
-    const blk = await rp.getBlock("latest");
-    if (!blk || !blk.timestamp) return;
-    const off = Number(blk.timestamp) - Date.now() / 1000;
-    if (Math.abs(off) < 30) S.clockOff = (S.clockOff || 0) * 0.5 + off * 0.5;
+    if (rp) {
+      const blk = await rp.getBlock("latest");
+      if (blk && blk.timestamp) {
+        const off = Number(blk.timestamp) - Date.now() / 1000;
+        if (Math.abs(off) < 30) { S.clockOff = (S.clockOff || 0) * 0.5 + off * 0.5; return; }
+      }
+    }
+  } catch (e) {}
+  // round36 兜底：只读节点池不可用时用本站 HTTP Date 头校准（秒级精度，足够倒计时对齐）
+  try {
+    const t0 = Date.now();
+    const r = await fetch(location.pathname + "?_cal=" + t0, { method: "HEAD", cache: "no-store" });
+    const dh = r.headers.get("date");
+    if (dh) {
+      const off = (Date.parse(dh) + 500) / 1000 - (t0 + Date.now()) / 2000;
+      if (Math.abs(off) < 30) S.clockOff = (S.clockOff || 0) * 0.5 + off * 0.5;
+    }
   } catch (e) {}
 }
 setInterval(calibrateClock, 60000);
