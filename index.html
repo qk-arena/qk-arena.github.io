@@ -1755,6 +1755,20 @@ function startCryptoWs(id) {
 }
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && S.assetId !== 0 && flowPts.length && calNowS() - flowPts[flowPts.length - 1].t > 5) { seedKlines(); if (ASSETS_META[S.assetId] && ASSETS_META[S.assetId].kind === "crypto") { seedFlowSeconds(S.assetId); backfillRecentTrades(S.assetId); } }
+/* round41 历史自愈：每 10 秒巡检一次，缓冲里没有 100 秒以前的历史点就重新回填——
+   第一波种子请求在真机网络全灭时靠它把整段线补回来，不再留一片空白只剩线头。 */
+let healAt = 0;
+setInterval(() => {
+  try {
+    if (document.hidden || S.assetId === 0) return;
+    const meta = ASSETS_META[S.assetId];
+    if (!meta || meta.kind !== "crypto") return;
+    if (flowPts.length && flowPts[0].t < calNowS() - 100) return;
+    if (Date.now() - healAt < 10000) return;
+    healAt = Date.now();
+    seedKlines(); seedFlowSeconds(S.assetId); backfillRecentTrades(S.assetId);
+  } catch (e) {}
+}, 10000);
 });
 function startAssetFeeds(id) {
   stopFeeds(); stopAssetPolls();
@@ -2202,8 +2216,8 @@ function sampleFlowBuf(p, tsMs) {
    偏离现价 >0.5% 的种子点不要。只补真实数据，绝不编造。 */
 function mergeFlowSeeds() {
   if (S.assetId === 0 || !Array.isArray(S.linePts) || S.linePts.length < 2) return;
-  if (flowMeta.assetId !== S.assetId || !flowPts.length) return;
-  const ref = S.price || flowPts[flowPts.length - 1].p;
+  if (flowMeta.assetId !== S.assetId) return;
+  const ref = S.price || (flowPts.length ? flowPts[flowPts.length - 1].p : S.linePts[S.linePts.length - 1].p);
   if (!ref) return;
   const wallS = Date.now() / 1000;
   let added = 0;
@@ -2225,8 +2239,10 @@ function mergeFlowSeeds() {
    round39：参考价可传入批次自身中位数（整窗回填时现价可能已离老点 >0.5%，不许误杀真历史）。 */
 function mergeFlowPoints(list, refP) {
   if (S.assetId === 0 || !list || !list.length) return;
-  if (flowMeta.assetId !== S.assetId || !flowPts.length) return;
-  const ref = refP || S.price || flowPts[flowPts.length - 1].p;
+  if (flowMeta.assetId !== S.assetId) return;
+  // round41：缓冲为空时也允许落种——真机上回填若抢在第一笔 tick 前返回，旧守卫会把整段历史扔掉、图上只剩线头
+  let ref = refP || S.price || (flowPts.length ? flowPts[flowPts.length - 1].p : 0);
+  if (!ref) { const ps = list.map((k) => k.p).filter((p) => p > 0).sort((a, b) => a - b); if (!ps.length) return; ref = ps[Math.floor(ps.length / 2)]; }
   if (!ref) return;
   const wallS = Date.now() / 1000;
   let added = 0;
@@ -2242,18 +2258,18 @@ function mergeFlowPoints(list, refP) {
   }
   if (added && typeof KLINE !== "undefined") KLINE.dirty = true;
 }
-/* round39 整窗成交回填：aggTrades 向后翻页拉满整个可见窗口（约 500 秒）的真实成交，
-   取代 1 秒 K 线收盘价当主历史——种子台阶感就是那么来的。真实成交怎么走，线就怎么画。
-   Vision 优先、Gate 最近 1000 笔兜底；批次以自身中位数做合理性参考。 */
+/* round41 整窗成交回填：四家交易所并行拉真实成交，取时间覆盖最宽的一家——
+   真机网络下单一家的域名不通是常态，不能把整段历史押在一个源上。
+   Vision 向后翻页约 500 秒最深；Gate 最近约 90 秒；OKX/Bitget 最近约百笔兜底。 */
 async function backfillRecentTrades(id) {
   const meta = ASSETS_META[id];
   if (!meta || meta.kind !== "crypto") return;
   const g = gen;
   const nowMs = Date.now();
-  let all = [];
-  let endTime = nowMs;
-  for (let page = 0; page < 4; page++) {
-    try {
+  const fetchVision = async () => {
+    let all = [];
+    let endTime = nowMs;
+    for (let page = 0; page < 4; page++) {
       const u = "https://data-api.binance.vision/api/v3/aggTrades?symbol=" + meta.symbol + "&endTime=" + endTime + "&limit=1000";
       const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
       if (!r.ok) break;
@@ -2262,18 +2278,52 @@ async function backfillRecentTrades(id) {
       all = j.map((x) => ({ t: x.T / 1000, p: parseFloat(x.p) })).concat(all);
       endTime = Number(j[0].T) - 1;
       if (Number(j[0].T) <= nowMs - 500000) break;
-    } catch (e) { break; }
+    }
+    return all;
+  };
+  const fetchGate = async () => {
+    // 向后翻 5 个 90 秒窗，Gate 一家就能铺满约 450 秒真实成交（Vision 不通时的主力历史源）
+    let all = [];
+    const nowS = Math.floor(nowMs / 1000);
+    for (let w = 0; w < 5; w++) {
+      const to = nowS - w * 90, from = to - 90;
+      const u = "https://api.gateio.ws/api/v4/spot/trades?currency_pair=" + meta.pairU + "&from=" + from + "&to=" + to + "&limit=1000";
+      const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+      if (!r.ok) break;
+      const j = await r.json();
+      if (!Array.isArray(j) || !j.length) break;
+      all = j.map((x) => ({ t: Number(x.create_time_ms) / 1000, p: parseFloat(x.price) })).concat(all);
+    }
+    return all;
+  };
+  const fetchOkx = async () => {
+    const u = "https://www.okx.com/api/v5/market/trades?instId=" + meta.pairU.replace("_", "-") + "&limit=100";
+    const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return j && Array.isArray(j.data) ? j.data.map((x) => ({ t: Number(x.ts) / 1000, p: parseFloat(x.px) })).reverse() : [];
+  };
+  const fetchBitget = async () => {
+    const u = "https://api.bitget.com/api/v2/spot/market/fills?symbol=" + meta.symbol + "&limit=100";
+    const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+    if (!r.ok) return [];
+    const j = await r.json();
+    return j && Array.isArray(j.data) ? j.data.map((x) => ({ t: Number(x.ts) / 1000, p: parseFloat(x.price) })).reverse() : [];
+  };
+  const results = await Promise.allSettled([fetchVision(), fetchGate(), fetchOkx(), fetchBitget()]);
+  if (g !== gen || S.assetId !== id) return;
+  let best = null, bestSpan = -1;
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value && r.value.length > 1) {
+      let mn = Infinity, mx = -Infinity;
+      for (const k of r.value) { if (k.t < mn) mn = k.t; if (k.t > mx) mx = k.t; }
+      const sp = mx - mn;
+      if (sp > bestSpan) { bestSpan = sp; best = r.value; }
+    }
   }
-  if (!all.length) {
-    try {
-      const u2 = "https://api.gateio.ws/api/v4/spot/trades?currency_pair=" + meta.pairU + "&from=" + Math.floor((nowMs - 90000) / 1000) + "&to=" + Math.floor(nowMs / 1000) + "&limit=1000";
-      const r2 = await fetch(u2, { signal: AbortSignal.timeout(6000) });
-      if (r2.ok) { const j2 = await r2.json(); if (Array.isArray(j2) && j2.length) all = j2.map((x) => ({ t: Number(x.create_time_ms) / 1000, p: parseFloat(x.price) })); }
-    } catch (e) {}
-  }
-  if (!all.length || g !== gen || S.assetId !== id) return;
-  const sorted = all.map((k) => k.p).sort((a, b) => a - b);
-  mergeFlowPoints(all, sorted[Math.floor(sorted.length / 2)]);
+  if (!best) return;
+  const sorted = best.map((k) => k.p).sort((a, b) => a - b);
+  mergeFlowPoints(best, sorted[Math.floor(sorted.length / 2)]);
 }
 /* round38 每秒级种子：1 秒 K 线收盘价（每秒一个真实点）把整段窗口铺密，
    取代只有每分钟 3 点的粗种子当主种子源；失败时退回最近成交回填 + 分钟种子。 */
@@ -4431,7 +4481,7 @@ function drawFlowLine(ctx, W, H) {
     ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(padL + plotW, yy); ctx.stroke();
     ctx.fillStyle = "#8b96ad";
     ctx.textAlign = "left";
-    ctx.fillText(fmtPrice(v).replace("$", ""), padL + plotW + 6, yy);
+    if (Math.abs(yy - y(lastPt.p)) > 11) ctx.fillText(fmtPrice(v).replace("$", ""), padL + plotW + 6, yy); // round41：与当前价签同高的刻度字跳过，不再叠字
   }
   const tag = (cx, cy, price, caption, color, place, above) => {
     ctx.font = "bold 11px sans-serif";
@@ -4446,6 +4496,7 @@ function drawFlowLine(ctx, W, H) {
     bx = Math.min(Math.max(bx, 2), Math.max(2, W - tw - 2));
     let by = above ? cy - th - 10 : cy + 10; if (by < 2) by = cy + 10; if (by + th > H - 4) by = cy - th - 10;
     by = Math.min(Math.max(by, 2), Math.max(2, H - th - 2));
+    if (typeof headY === "number" && Math.abs(by + th / 2 - headY) < th) { const up = headY - th - 8; by = up >= 2 ? up : Math.min(headY + 10, Math.max(2, H - th - 2)); } // round41：价签避开当前价虚线，不让线穿字
     ctx.fillStyle = color;
     ctx.shadowColor = "rgba(0,0,0,.55)";
     ctx.shadowBlur = 8;
