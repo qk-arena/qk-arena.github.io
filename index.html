@@ -1308,6 +1308,7 @@ function intakeTrade(isBuy, price, qty, g, tsMs) {
   updatePower();
 }
 let _suspectTick = null, _suspectAt = 0;
+let _heldTick = null, _heldAt = 0; // round42 共识扣留状态
 function notePrice(p, _legacyFromSim, g, assetId, tsMs) {
   // 代际/品类校验（第二轮返工·缺陷 B）：切品类后，旧品类连接里在途的异步回调
   // （轮询 fetch、池子读数）可能迟到落地，旧逻辑照单全收，于是出现「BTC 顶栏
@@ -1332,6 +1333,24 @@ function notePrice(p, _legacyFromSim, g, assetId, tsMs) {
     if (_suspectTick && Math.abs(p - _suspectTick) / _suspectTick < SUSPECT_CONFIRM && nowT - (_suspectAt || 0) >= 1000) { _suspectTick = null; _suspectAt = 0; }
     else { if (!_suspectTick || Math.abs(p - _suspectTick) / _suspectTick >= SUSPECT_CONFIRM) { _suspectTick = p; _suspectAt = nowT; } return; }
   } else { _suspectTick = null; _suspectAt = 0; }
+  // round42 共识扣留（仅加密品类，简报 §2）：偏离 flow 近 5 点中位数 >0.05% 的实时价
+  // 先扣一笔等确认——真机上混进的过期价只偏离约 0.02%~0.1%，穿得过 0.5% 的老门槛，
+  // 被逐点直连画成全幅竖直尖刺。确认规则：下一笔与扣留价相差 ≤0.03% 视为真跳变放行
+  // （跳变第一笔舍弃，价位由第二笔确立，形态只迟一笔）；下一笔回到中位数附近则
+  // 扣留点是坏 tick，静默丢弃。扣留超时由 rafLoop 强制放行（见 rafLoop 内 round42 段）。
+  if (_legacyFromSim === "force") { _heldTick = null; _heldAt = 0; }
+  if (_legacyFromSim !== "force" && S.assetId !== 0 && typeof ASSETS_META !== "undefined" && ASSETS_META[S.assetId] && ASSETS_META[S.assetId].kind === "crypto" && typeof flowPts !== "undefined" && flowPts.length >= 4) {
+    const _r5 = flowPts.slice(-5).map((k) => k.p).sort((a, b) => a - b);
+    const _med = _r5[Math.floor(_r5.length / 2)];
+    if (_med > 0) {
+      const _dev = Math.abs(p - _med) / _med;
+      if (_heldTick !== null) {
+        if (Math.abs(p - _heldTick) / _heldTick <= 0.0003) { _heldTick = null; _heldAt = 0; }
+        else if (_dev <= 0.0005) { _heldTick = null; _heldAt = 0; }
+        else { _heldTick = p; _heldAt = Date.now(); return; }
+      } else if (_dev > 0.0005) { _heldTick = p; _heldAt = Date.now(); return; }
+    }
+  }
   if (!S._realSeen) {
     S._realSeen = true;
     // 首笔真价：历史 K 线种子里偏离真价 >0.3% 的点一律清出序列与 K 线
@@ -1789,9 +1808,20 @@ function startAssetFeeds(id) {
       throw new Error("bad-price");
     };
     const pollExch = () => {
-      let done = false, fails = 0;
-      const ok = (pr) => { if (!done) { done = true; if (Date.now() - lastWsTickAt > 2500) notePrice(pr, false, undefined, id); } };
-      const bad = () => { fails++; };
+      // round42：一轮收齐四家取中位数再喂价（简报 §2）——旧逻辑取最先返回的一家，
+      // 四家轮换时任何一家返回过期价都会周期性把现价拽回旧值；中位数让单家过期被多数票否决。
+      const _prices = [];
+      let _settled = 0, _fired = false;
+      const _finish = () => {
+        if (_fired) return; _fired = true;
+        if (!_prices.length) return;
+        if (Date.now() - lastWsTickAt <= 2500) return;
+        _prices.sort((a, b) => a - b);
+        notePrice(_prices[Math.floor(_prices.length / 2)], false, undefined, id);
+      };
+      const ok = (pr) => { if (pr > 0) _prices.push(pr); if (++_settled >= 4) _finish(); };
+      const bad = () => { if (++_settled >= 4) _finish(); };
+      setTimeout(_finish, 1200);
       fetchOne("https://data-api.binance.vision/api/v3/ticker/price?symbol=" + meta.symbol, (j) => parseFloat(j && j.price)).then(ok).catch(bad);
       fetchOne("https://api.bitget.com/api/v2/spot/market/tickers?symbol=" + meta.symbol, (j) => { const d = j && j.data && j.data[0]; return d && parseFloat(d.lastPr); }).then(ok).catch(bad);
       fetchOne("https://api.gateio.ws/api/v4/spot/tickers?currency_pair=" + meta.pairU, (j) => { const d = Array.isArray(j) ? j[0] : null; return d && parseFloat(d.last); }).then(ok).catch(bad);
@@ -4418,6 +4448,27 @@ function splitSegs(pts, gapSec) {
   if (cur.length) segs.push(cur);
   return segs;
 }
+function traceMonoPath(ctx, XY) {
+  // round42 单调三次插值（Fritsch–Carlson，简报 §3）：逐段斜率钳制，曲线只在相邻
+  // 真实点围成的范围内走——不冲出造假峰、不把快速行情抹成慢波浪；新点加入只改变
+  // 末段切线，已进入历史的段落保持稳定不回扭。
+  const n = XY.length;
+  ctx.moveTo(XY[0][0], XY[0][1]);
+  if (n < 3) { for (let i = 1; i < n; i++) ctx.lineTo(XY[i][0], XY[i][1]); return; }
+  const dx = [], slope = [], m = new Array(n);
+  for (let i = 0; i < n - 1; i++) { dx[i] = XY[i + 1][0] - XY[i][0]; slope[i] = dx[i] !== 0 ? (XY[i + 1][1] - XY[i][1]) / dx[i] : 0; }
+  m[0] = slope[0]; m[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = (slope[i - 1] + slope[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+    const a = m[i] / slope[i], b = m[i + 1] / slope[i], s = a * a + b * b;
+    if (s > 9) { const tt = 3 / Math.sqrt(s); m[i] = tt * a * slope[i]; m[i + 1] = tt * b * slope[i]; }
+  }
+  for (let i = 0; i < n - 1; i++) {
+    const d = dx[i];
+    ctx.bezierCurveTo(XY[i][0] + d / 3, XY[i][1] + (m[i] * d) / 3, XY[i + 1][0] - d / 3, XY[i + 1][1] - (m[i + 1] * d) / 3, XY[i + 1][0], XY[i + 1][1]);
+  }
+}
 function drawFlowLine(ctx, W, H) {
   const em = $("chartEmpty");
   const staleEl = $("chartStale");
@@ -4454,7 +4505,7 @@ function drawFlowLine(ctx, W, H) {
   const tgt = flowAxisTarget(pts.map((k) => k.p), lockP, lastPt.p);
   if (!tgt) return;
   if (flowAxis.lo === null) { flowAxis.lo = tgt.lo; flowAxis.hi = tgt.hi; }
-  else { flowAxis.lo += (tgt.lo - flowAxis.lo) * 0.35; flowAxis.hi += (tgt.hi - flowAxis.hi) * 0.35; } // round39：纵轴近即时跟随
+  else { flowAxis.lo += (tgt.lo - flowAxis.lo) * 0.25; flowAxis.hi += (tgt.hi - flowAxis.hi) * 0.25; } // round42：纵轴统一平滑缩放（简报 §8）
   const lo = flowAxis.lo, hi = flowAxis.hi;
   const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * plotH;
   // 涨跌分区（以开始价为界）
@@ -4560,7 +4611,7 @@ function drawFlowLine(ctx, W, H) {
   if (flowMeta.animP == null) flowMeta.animP = lastPt.p;
   const dtF = flowMeta.animAt ? Math.min(0.1, (Date.now() - flowMeta.animAt) / 1000) : 0.016;
   flowMeta.animAt = Date.now();
-  flowMeta.animP = lastPt.p; // round39：线头零趋近——最新真实价是多少就跳到多少（用户：怎么走怎么画，别害怕）
+  flowMeta.animP += (lastPt.p - flowMeta.animP) * (1 - Math.exp(-dtF / 0.07)); // round42：光点从当前显示位置连续趋近最新真实价（τ=0.07s）——状态跨帧保留、不重置、不过冲（简报 §5）
   const animP = flowMeta.animP;
   const fresh = nowCal - lastPt.t <= 1.5;
   const headX = fresh ? nowX : X(lastPt.t);
@@ -4587,11 +4638,10 @@ function drawFlowLine(ctx, W, H) {
     ctx.beginPath();
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.moveTo(XY[0][0], XY[0][1]);
-    for (let i = 1; i < XY.length; i++) ctx.lineTo(XY[i][0], XY[i][1]);
+    traceMonoPath(ctx, XY);
     ctx.strokeStyle = lineCol;
-    ctx.lineWidth = 2.2;
-    ctx.stroke(); // round40：竞品同款单根干净线——无线下填充、无线外光晕
+    ctx.lineWidth = 1.8;
+    ctx.stroke(); // round42：单根细线、单调三次连接——转折圆润但不造峰（简报 §3）
   }
   // 本局起点金点（压在开始价与线交界处）
   if (lockP && startS && startS >= t0 && startS <= nowCal) {
@@ -5518,6 +5568,8 @@ function init() {
   // 逐 tick 丝滑重绘（验收红线）：采样点一变就标脏，rAF 按动画帧重绘线图，
   // 线的动势与 tick 同步，不再 500ms 一跳；K 线模式保留 500ms 节奏。
   (function rafLoop() {
+    // round42：共识扣留超时放行——真跳变后若市场转静默，扣留价 1.2 秒后强制落地，价格不许被扣死
+    if (_heldTick !== null && Date.now() - _heldAt > 1200) { const _hp = _heldTick; _heldTick = null; _heldAt = 0; try { notePrice(_hp, "force", undefined, S.assetId); } catch (e) {} }
     // 进行中的本局线每帧重绘（缺陷 C 线尾动画的前提）：只在有进行中缓冲时
     // 才逐帧，其余时候仍走脏标记，避免无谓重绘。
     // round15：分时线每帧重绘（线尾缓动的前提，两条渲染路径都受益）；无价时走脏标记。
