@@ -1299,6 +1299,7 @@ function stopFeeds() {
 let lastTickAt = 0; // 最近一笔真实 tick 时刻（缺陷 C 数据看门狗用）
 function intakeTrade(isBuy, price, qty, g, tsMs) {
   if (g !== undefined && g !== gen) return; // 旧连接/旧品类的迟到 tick 一律丢弃（缺陷 B）
+  lastWsTickAt = Date.now(); // round38：只有真成交才算 WS 活着——心跳/订阅确认不许冒充行情骗过 REST 看门狗
   const now = Date.now();
   const usd = price * qty;
   S.trades.push({ t: now, isBuy, usd });
@@ -1732,29 +1733,28 @@ function startCryptoWs(id) {
       if (g !== gen) return;
       try { if (onOpen) onOpen(sock); } catch (e) {}
       // 重连后若流水尾部缺口 >5s，拉一次 K 线种子回填缺口（真实数据）
-      if (flowPts.length && calNowS() - flowPts[flowPts.length - 1].t > 5 && ASSETS_META[S.assetId] && ASSETS_META[S.assetId].kind === "crypto") seedKlines();
+      if (flowPts.length && calNowS() - flowPts[flowPts.length - 1].t > 5 && ASSETS_META[S.assetId] && ASSETS_META[S.assetId].kind === "crypto") { seedKlines(); seedFlowSeconds(S.assetId); backfillRecentTrades(S.assetId); }
     };
     sock.onmessage = (ev) => {
       if (g !== gen) return;
       let j; try { j = JSON.parse(ev.data); } catch (e) { return; }
-      lastWsTickAt = Date.now();
       try { onMsg(j); } catch (e) {}
     };
-    sock.onclose = () => { if (g === gen && S.assetId === id) setTimeout(() => { if (g === gen && S.assetId === id) mk(url, onOpen, onMsg); }, 4000); };
+    sock.onclose = () => { if (sock._pingT) { clearInterval(sock._pingT); sock._pingT = null; } if (g === gen && S.assetId === id) setTimeout(() => { if (g === gen && S.assetId === id) mk(url, onOpen, onMsg); }, 4000); };
     sock.onerror = () => { try { sock.close(); } catch (e) {} };
   };
   const sym = meta.symbol, pairU = meta.pairU, inst = sym.replace("USDT", "-USDT");
   mk("wss://data-stream.binance.vision/ws/" + sym.toLowerCase() + "@aggTrade", null,
     (j) => { if (j && j.p) { srcOnce("Binance Vision · 逐笔"); intakeTrade(j.m === false, parseFloat(j.p), parseFloat(j.q || 0), g, j.T); } });
   mk("wss://api.gateio.ws/ws/v4/",
-    (s) => s.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "spot.trades", event: "subscribe", payload: [pairU] })),
+    (s) => { s.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "spot.trades", event: "subscribe", payload: [pairU] })); s._pingT = setInterval(() => { try { s.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "spot.ping" })); } catch (e) {} }, 20000); },
     (j) => { if (j && j.event === "update" && j.result) { const r = j.result; srcOnce("Gate.io · 逐笔"); intakeTrade(r.side === "buy", parseFloat(r.price), parseFloat(r.amount), g, r.create_time_ms); } });
   mk("wss://ws.okx.com:8443/ws/v5/public",
-    (s) => s.send(JSON.stringify({ op: "subscribe", args: [{ channel: "trades", instId: inst }] })),
+    (s) => { s.send(JSON.stringify({ op: "subscribe", args: [{ channel: "trades", instId: inst }] })); s._pingT = setInterval(() => { try { s.send("ping"); } catch (e) {} }, 25000); },
     (j) => { if (j && Array.isArray(j.data)) { for (const d of j.data) { srcOnce("OKX · 逐笔"); intakeTrade(d.side === "buy", parseFloat(d.px), parseFloat(d.sz || 0), g, d.ts ? Number(d.ts) : undefined); } } });
 }
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && S.assetId !== 0 && flowPts.length && calNowS() - flowPts[flowPts.length - 1].t > 5) seedKlines();
+  if (!document.hidden && S.assetId !== 0 && flowPts.length && calNowS() - flowPts[flowPts.length - 1].t > 5) { seedKlines(); if (ASSETS_META[S.assetId] && ASSETS_META[S.assetId].kind === "crypto") { seedFlowSeconds(S.assetId); backfillRecentTrades(S.assetId); } }
 });
 function startAssetFeeds(id) {
   stopFeeds(); stopAssetPolls();
@@ -1762,7 +1762,7 @@ function startAssetFeeds(id) {
   const pl = $("pairLabel"); if (pl) pl.textContent = meta.pair;
   if (meta.kind === "crypto") {
     SYMBOL = meta.symbol; PAIR_USDT = meta.pairU;
-    startCryptoWs(id); seedKlines(); poll24h();
+    startCryptoWs(id); seedKlines(); seedFlowSeconds(id); backfillRecentTrades(id); poll24h();
     // round29：兜底只用交易所（用户定版：价格必须来自交易所，链上喂价没有量、
     // 不作数）。round27 的教训：Bitget/Gate 两家 REST 在用户网络里也可能连不上，
     // 且 WS 回退链走完要半分钟。改为四家交易所 REST 并行竞速——Binance Vision、
@@ -2181,13 +2181,13 @@ function sampleFlowBuf(p, tsMs) {
     } else flowMeta.dropRun = 0;
   }
   const last = pts[pts.length - 1];
-  // 多源并行去重（规格 §12）：比尾点旧 >0.35s 的迟到 tick 丢弃；小幅乱序插入有序位置；120ms 内合并进尾点
+  // 多源并行去重（规格 §12）：比尾点旧 >0.35s 的迟到 tick 丢弃；小幅乱序插入有序位置；50ms 内合并进尾点
   if (last && nowS < last.t - 0.35) return;
   if (last && nowS < last.t) {
     let i = pts.length - 1;
     while (i > 0 && pts[i - 1].t > nowS) i--;
     pts.splice(i, 0, { t: nowS, p });
-  } else if (last && nowS - last.t < 0.12) {
+  } else if (last && nowS - last.t < 0.05) {
     last.p = p; last.t = nowS;
   } else {
     pts.push({ t: nowS, p });
@@ -2220,6 +2220,74 @@ function mergeFlowSeeds() {
   }
   if (added && typeof KLINE !== "undefined") KLINE.dirty = true;
 }
+/* round38 通用合并：把一批真实价格点（{t 秒, p}）并入 flowPts——
+   只收过去 1500s 内、偏离现价 ≤0.5%、与已有真点间隔 ≥0.1s 的点（去重），二分插入保序。 */
+function mergeFlowPoints(list) {
+  if (S.assetId === 0 || !list || !list.length) return;
+  if (flowMeta.assetId !== S.assetId || !flowPts.length) return;
+  const ref = S.price || flowPts[flowPts.length - 1].p;
+  if (!ref) return;
+  const wallS = Date.now() / 1000;
+  let added = 0;
+  for (const k of list) {
+    if (!(k.p > 0) || k.t > wallS - 0.05 || wallS - k.t > 1500) continue;
+    if (Math.abs(k.p - ref) / ref > 0.005) continue;
+    let lo = 0, hi = flowPts.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (flowPts[m].t < k.t) lo = m + 1; else hi = m; }
+    const a = flowPts[lo - 1], b = flowPts[lo];
+    if ((a && k.t - a.t < 0.1) || (b && b.t - k.t < 0.1)) continue;
+    flowPts.splice(lo, 0, { t: k.t, p: k.p });
+    added++;
+  }
+  if (added && typeof KLINE !== "undefined") KLINE.dirty = true;
+}
+/* round38 最近成交回填：断线/切换后用交易所 REST 拉最近约 90 秒真实成交补密线尾，
+   Vision aggTrades 优先、Gate trades 兜底（都是真实成交，不是编造）。 */
+async function backfillRecentTrades(id) {
+  const meta = ASSETS_META[id];
+  if (!meta || meta.kind !== "crypto") return;
+  const g = gen;
+  const nowMs = Date.now();
+  let trades = null;
+  try {
+    const u = "https://data-api.binance.vision/api/v3/aggTrades?symbol=" + meta.symbol + "&startTime=" + (nowMs - 90000) + "&endTime=" + nowMs + "&limit=1000";
+    const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+    if (r.ok) { const j = await r.json(); if (Array.isArray(j) && j.length) trades = j.map((x) => ({ t: x.T / 1000, p: parseFloat(x.p) })); }
+  } catch (e) {}
+  if (!trades) {
+    try {
+      const u2 = "https://api.gateio.ws/api/v4/spot/trades?currency_pair=" + meta.pairU + "&from=" + Math.floor((nowMs - 90000) / 1000) + "&to=" + Math.floor(nowMs / 1000) + "&limit=1000";
+      const r2 = await fetch(u2, { signal: AbortSignal.timeout(6000) });
+      if (r2.ok) { const j2 = await r2.json(); if (Array.isArray(j2) && j2.length) trades = j2.map((x) => ({ t: Number(x.create_time_ms) / 1000, p: parseFloat(x.price) })); }
+    } catch (e) {}
+  }
+  if (!trades || g !== gen || S.assetId !== id) return;
+  mergeFlowPoints(trades);
+}
+/* round38 每秒级种子：1 秒 K 线收盘价（每秒一个真实点）把整段窗口铺密，
+   取代只有每分钟 3 点的粗种子当主种子源；失败时退回最近成交回填 + 分钟种子。 */
+let flowSeedAt = 0;
+async function seedFlowSeconds(id) {
+  const meta = ASSETS_META[id];
+  if (!meta || meta.kind !== "crypto") return;
+  if (Date.now() - flowSeedAt < 15000) return;
+  flowSeedAt = Date.now();
+  const g = gen;
+  try {
+    const u = "https://data-api.binance.vision/api/v3/klines?symbol=" + meta.symbol + "&interval=1s&limit=1000";
+    const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+    if (r.ok) {
+      const j = await r.json();
+      if (Array.isArray(j) && j.length) {
+        if (g !== gen || S.assetId !== id) return;
+        mergeFlowPoints(j.map((x) => ({ t: Number(x[6]) / 1000, p: parseFloat(x[4]) })));
+        return;
+      }
+    }
+  } catch (e) {}
+  if (g === gen && S.assetId === id) backfillRecentTrades(id);
+}
+
 
 /* 链上局一发现到就先把缓冲建好（第二轮返工·缺陷 A）：开始价锚点立刻能画，
    不必等第一笔采样 tick——旧逻辑缓冲只在 sampleRoundBuf 里懒创建，没 tick
@@ -3370,9 +3438,11 @@ function launchConfetti() {
   })(t0);
 }
 
-/* ---------------- BGM v2：WebAudio 合成史诗战歌《燃》，无外链音频 ----------------
-   固定 142 BPM、D 小调、8 小节循环：四踩战鼓 + 太鼓 + 驱动贝斯 + 铜管重击
-   + 弦乐铺底 + 英雄主旋律；决战最后 15 秒加双倍鼓点推满。
+/* ---------------- BGM v3：WebAudio 合成电子战曲，无外链音频 ----------------
+   round38 按竞品录像音频实测重配：持续不断的电子循环、中高频明亮、A 小调——
+   142 BPM、8 小节循环（Am Am F F Am Am F G）：四踩底鼓 + 拍手 + 踩镲
+   + 八分驱动贝斯 + 16 分琶音 + 明亮主音钩子；最后 15 秒镲片加密推满。
+   （v2 的太鼓铜管史诗版太沉、太慢，与竞品的电子感对不上，退役。）
    AudioContext 懒创建（首次交互才建，不拖加载）；
    静音与音量记入 localStorage qk_bgm_v2；顶栏有静音开关与音量条。 */
 const BGM = { ctx: null, master: null, musicGain: null, beepGain: null, on: false, muted: false, volume: 0.8, timer: null, step: 0, nextTime: 0 };
@@ -3585,6 +3655,20 @@ function bgmNoise(when, vel, dur) {
   src.connect(f); f.connect(g); g.connect(BGM.musicGain);
   src.start(when);
 }
+function bgmClap(when, vel) {
+  const c = BGM.ctx;
+  const len = Math.floor(c.sampleRate * 0.14);
+  const buf = c.createBuffer(1, len, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.6);
+  const src = c.createBufferSource(); src.buffer = buf;
+  const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1700; f.Q.value = 1.1;
+  const g = c.createGain();
+  g.gain.setValueAtTime(vel, when);
+  g.gain.exponentialRampToValueAtTime(0.001, when + 0.14);
+  src.connect(f); f.connect(g); g.connect(BGM.musicGain);
+  src.start(when);
+}
 function bgmHorn(when, dur) {
   const c = BGM.ctx;
   [55, 82.4, 110].forEach((fr, i) => {
@@ -3605,43 +3689,37 @@ function bgmSchedule() {
   const beat = 60 / bgmBpm();      /* 142 BPM */
   const s16 = beat / 4;            /* 十六分音符 */
   const urgent = S.phase === "betting" && S.cdSec !== null && S.cdSec <= 15 && S.cdSec > 0;
-  /* 8 小节循环（每小节 16 步）：Dm Dm Bb Bb Dm Dm Bb A */
-  const BASS_ROOT = [38, 38, 34, 34, 38, 38, 34, 33];
-  const PAD_TONES = [
-    [50, 53, 57], [50, 53, 57], [46, 50, 53], [46, 50, 53],
-    [50, 53, 57], [50, 53, 57], [46, 50, 53], [45, 49, 52]
+  /* v3 电子版 8 小节循环：Am Am F F Am Am F G（根音 midi / 和弦音） */
+  const ROOTS = [33, 33, 29, 29, 33, 33, 29, 31];
+  const CHORDS = [
+    [57, 60, 64], [57, 60, 64], [53, 57, 60], [53, 57, 60],
+    [57, 60, 64], [57, 60, 64], [53, 57, 60], [55, 59, 62]
   ];
-  const BRASS_ROOT = [50, 50, 46, 46, 50, 50, 46, 45];
-  const LEAD = [
-    [64, 74, 6], [70, 69, 3], [73, 65, 3], [76, 69, 4],
-    [80, 70, 6], [86, 69, 3], [89, 67, 3], [92, 65, 4],
-    [96, 74, 4], [100, 77, 4], [104, 81, 6], [110, 79, 6],
-    [112, 81, 8], [120, 76, 4], [124, 69, 4]
-  ];
+  const ARP_SEQ = [0, 1, 2, 1];
+  /* 主音钩子（32 步一轮，两轮一型）：A 型明亮上行，B 型换 F/G 语汇收束 */
+  const MOTIF_A = [[0, 69, 3], [4, 72, 2], [6, 76, 3], [10, 74, 2], [12, 72, 2], [14, 69, 2], [16, 67, 3], [20, 69, 2], [22, 72, 2], [24, 76, 4], [28, 74, 4]];
+  const MOTIF_B = [[0, 65, 3], [4, 69, 2], [6, 72, 3], [10, 69, 2], [12, 65, 2], [14, 64, 2], [16, 62, 3], [20, 64, 2], [22, 67, 2], [24, 71, 4], [28, 69, 4]];
   while (BGM.nextTime < c.currentTime + 0.25) {
     const when = BGM.nextTime;
     const st = BGM.step % 128;
     const bar = Math.floor(st / 16), s = st % 16;
-    const root = BASS_ROOT[bar];
-    if (s % 4 === 0) bgmKick(when, 0.9);
-    if (s === 14) bgmKick(when, 0.45);
-    if (s === 0) bgmTaiko(when, 0.6);
-    if (s === 8) bgmTaiko(when, 0.45);
-    if (urgent && s % 2 === 0) bgmTaiko(when, 0.3);
-    if (s % 4 === 2) bgmNoise(when, 0.13, 0.05);
-    if (urgent && s % 2 === 1) bgmNoise(when, 0.07, 0.04);
-    if (s % 2 === 0) bgmBass(when, (s % 8 === 4) ? root + 12 : root, s16 * 1.9, 0.17);
-    if (bar >= 4 && s % 2 === 0) {
-      const arp = PAD_TONES[bar];
-      bgmPluck(when, mf(arp[(s / 2) % 3] + 12), 0.07);
-    }
-    if (s === 0 || s === 6 || s === 10) bgmBrass(when, BRASS_ROOT[bar], s16 * 3.2, 0.11);
-    if (s === 0) bgmPad(when, beat * 4, PAD_TONES[bar].map(mf));
-    if (st === 0) bgmCrash(when, 0.4);
-    if (st === 112) bgmRiser(beat * 3.6);
-    if (st >= 120) bgmTom(when, [98, 88, 78, 70, 64, 58, 52, 47][st - 120], 0.5);
-    for (let k = 0; k < LEAD.length; k++) {
-      if (LEAD[k][0] === st) bgmLead(when, LEAD[k][1], LEAD[k][2] * s16, 0.16);
+    const root = ROOTS[bar], chord = CHORDS[bar];
+    if (s % 4 === 0) bgmKick(when, 0.95);
+    if (s === 14) bgmKick(when, 0.5);
+    if (urgent && (s === 7 || s === 15)) bgmKick(when, 0.4);
+    if (s === 4 || s === 12) bgmClap(when, 0.5);
+    if (s % 2 === 1) bgmNoise(when, 0.055, 0.035);
+    if (s % 4 === 2) bgmNoise(when, 0.028, 0.03);
+    if (urgent && s % 2 === 0 && s % 4 !== 0) bgmNoise(when, 0.04, 0.03);
+    if (s === 14) bgmNoise(when, 0.05, 0.16);
+    if (s % 2 === 0) bgmBass(when, (s % 8 === 4) ? root + 12 : root, s16 * 1.8, 0.20);
+    bgmPluck(when, mf(chord[ARP_SEQ[s % 4]] + 12), urgent ? 0.075 : 0.055);
+    if (s === 0) bgmPad(when, beat * 4, chord.map(mf));
+    if (st === 0) bgmCrash(when, 0.32);
+    const motif = (Math.floor(bar / 2) % 2 === 0) ? MOTIF_A : MOTIF_B;
+    const local = st % 32;
+    for (let k = 0; k < motif.length; k++) {
+      if (motif[k][0] === local) bgmLead(when, motif[k][1] + 12, motif[k][2] * s16, 0.13);
     }
     BGM.step++;
     BGM.nextTime += s16;
@@ -4247,6 +4325,8 @@ function drawRoundLine(ctx, W, H, buf) {
    - 缺口 >4s 断线不连；数据停滞 >3.5s 显示「行情更新中」，光点停在最后真实点随轴左移，不造假价。 */
 function flowWindow(dur) { return { past: dur, future: Math.round(dur * 0.5) }; }
 function flowAxisTarget(vals, lockP, lastP) {
+  // round38 对齐竞品：纵轴紧贴可见数据（竞品 BNB 全幅仅约 0.09%）——分位抗离群后只留 8% 白，
+  // 最小量程 0.06%（横盘也不许把微小波动藏起来；仍保留下限防单点抖动把轴撑爆）
   const arr = vals.slice().sort((a, b) => a - b);
   if (!arr.length) return null;
   const q = (f) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(f * arr.length)))];
@@ -4255,9 +4335,9 @@ function flowAxisTarget(vals, lockP, lastP) {
   if (lastP) { lo = Math.min(lo, lastP); hi = Math.max(hi, lastP); }
   const anchor = lastP || lockP || arr[arr.length - 1];
   let range = hi - lo;
-  const minRange = anchor * 0.0015;
+  const minRange = anchor * 0.0006;
   if (range < minRange) { const mid = (hi + lo) / 2; hi = mid + minRange / 2; lo = mid - minRange / 2; range = minRange; }
-  lo -= range * 0.12; hi += range * 0.12;
+  lo -= range * 0.08; hi += range * 0.08;
   return { lo, hi };
 }
 function splitSegs(pts, gapSec) {
@@ -4306,7 +4386,7 @@ function drawFlowLine(ctx, W, H) {
   const tgt = flowAxisTarget(pts.map((k) => k.p), lockP, lastPt.p);
   if (!tgt) return;
   if (flowAxis.lo === null) { flowAxis.lo = tgt.lo; flowAxis.hi = tgt.hi; }
-  else { flowAxis.lo += (tgt.lo - flowAxis.lo) * 0.08; flowAxis.hi += (tgt.hi - flowAxis.hi) * 0.08; }
+  else { flowAxis.lo += (tgt.lo - flowAxis.lo) * 0.15; flowAxis.hi += (tgt.hi - flowAxis.hi) * 0.15; }
   const lo = flowAxis.lo, hi = flowAxis.hi;
   const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * plotH;
   // 涨跌分区（以开始价为界）
@@ -4319,7 +4399,9 @@ function drawFlowLine(ctx, W, H) {
   }
   // 点阵背景
   ctx.fillStyle = "rgba(255,255,255,.05)";
-  for (let gx = padL + 6; gx < padL + plotW; gx += 14) for (let gy = padT + 4; gy < padT + plotH; gy += 14) { ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill(); }
+  ctx.beginPath();
+  for (let gx = padL + 6; gx < padL + plotW; gx += 14) for (let gy = padT + 4; gy < padT + plotH; gy += 14) { ctx.moveTo(gx + 1, gy); ctx.arc(gx, gy, 1, 0, Math.PI * 2); }
+  ctx.fill();
   // 横向网格 + 右侧刻度（gutter）
   ctx.font = "10px sans-serif";
   ctx.textBaseline = "middle";
@@ -4399,28 +4481,19 @@ function drawFlowLine(ctx, W, H) {
   vTag(startS, LANG === "zh" ? "开始" : "Start", "rgba(216,180,90,.5)");
   vTag(closeS, LANG === "zh" ? "结束" : "End", "rgba(238,241,248,.4)");
   // 线体：显示平滑（中值 + 加权，只平滑已收到的真实点，不编造走势）
-  const smooth = (seg) => {
-    const med = seg.map((k, i) => {
-      const a = seg[Math.max(0, i - 1)].p, b = seg[Math.min(seg.length - 1, i + 1)].p;
-      const s3 = [a, k.p, b].sort((x, z) => x - z);
-      return { t: k.t, p: s3[1] };
-    });
-    return med.map((k, i) => {
-      const a = med[Math.max(0, i - 1)], b = med[Math.min(med.length - 1, i + 1)];
-      return { t: k.t, p: (a.p + k.p * 2 + b.p) / 4 };
-    });
-  };
+  // round38：不做任何平滑——竞品的线是原始逐笔锯齿直连，每一笔抖动都在；
+  // 之前的中值+加权平滑把真实转折全抹平了，是线看起来慢的主因。
   // 线尾动画价：逐帧趋近最新真实价（τ≈0.25s 显示平滑）；四元素共用 animP 保证同步
   if (flowMeta.animP == null) flowMeta.animP = lastPt.p;
   const dtF = flowMeta.animAt ? Math.min(0.1, (Date.now() - flowMeta.animAt) / 1000) : 0.016;
   flowMeta.animAt = Date.now();
-  flowMeta.animP += (lastPt.p - flowMeta.animP) * (1 - Math.exp(-dtF / 0.25));
+  flowMeta.animP += (lastPt.p - flowMeta.animP) * (1 - Math.exp(-dtF / 0.08)); // round38：线头贴价（τ 0.25->0.08），竞品的点是逐笔跳的，不许滑行
   const animP = flowMeta.animP;
   const fresh = nowCal - lastPt.t <= 1.5;
   const headX = fresh ? nowX : X(lastPt.t);
   const headY = y(animP);
   const lineCol = S.phase === "locked" ? "#b8e62e" : "#ffa02e";
-  const drawnSegs = splitSegs(pts, 4).map(smooth);
+  const drawnSegs = splitSegs(pts, 4);
   if (fresh && drawnSegs.length) drawnSegs[drawnSegs.length - 1].push({ t: nowCal, p: animP });
   for (const sm of drawnSegs) {
     if (sm.length < 2) continue;
@@ -4429,17 +4502,14 @@ function drawFlowLine(ctx, W, H) {
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.moveTo(XY[0][0], XY[0][1]);
-    for (let i = 1; i < XY.length - 1; i++) {
-      const mx = (XY[i][0] + XY[i + 1][0]) / 2, my = (XY[i][1] + XY[i + 1][1]) / 2;
-      ctx.quadraticCurveTo(XY[i][0], XY[i][1], mx, my);
-    }
-    ctx.lineTo(XY[XY.length - 1][0], XY[XY.length - 1][1]);
+    for (let i = 1; i < XY.length; i++) ctx.lineTo(XY[i][0], XY[i][1]);
     ctx.strokeStyle = lineCol;
-    ctx.lineWidth = 2.6;
-    ctx.shadowColor = lineCol;
-    ctx.shadowBlur = 12;
+    ctx.globalAlpha = 0.20;
+    ctx.lineWidth = 6;
     ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
     ctx.lineTo(XY[XY.length - 1][0], padT + plotH);
     ctx.lineTo(XY[0][0], padT + plotH);
     ctx.closePath();
@@ -4468,7 +4538,7 @@ function drawFlowLine(ctx, W, H) {
   ctx.font = "bold 10px sans-serif";
   const pw = ctx.measureText(pv).width + 8;
   const chipY = Math.max(padT - 8, Math.min(headY - 8, padT + plotH - 8));
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = S.phase === "locked" ? "#b8e62e" : "#fff"; // 竞品同款：锁定阶段价签变黄绿
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(padL + plotW + 3, chipY, pw, 16, 3); else ctx.rect(padL + plotW + 3, chipY, pw, 16);
   ctx.fill();
