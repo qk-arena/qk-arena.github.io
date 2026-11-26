@@ -374,7 +374,7 @@ input{font-family:inherit}
 .road-head h2{font-size:14px;letter-spacing:1px}
 .road-legend{font-size:11px;color:var(--muted);white-space:nowrap}
 .rdot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:-1px}
-.rdot.long{background:#1ecb6e}.rdot.short{background:#f6465d}.rdot.draw{background:#8b96ad}
+.rdot.long{background:#1ecb6e}.rdot.short{background:#f6465d}.rdot.draw{background:#8b96ad}.rdot.one{background:#5b6472}.rdot.cancel{background:#39404c}
 .road-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,22px);grid-auto-columns:22px;gap:4px;margin-top:6px;height:48px;overflow-x:auto;overflow-y:hidden}
 .road-grid .rdot{width:22px;height:22px}
 .road-empty{color:var(--muted);font-size:12px;white-space:nowrap;position:absolute;left:2px;top:50%;transform:translateY(-50%)}
@@ -1698,13 +1698,17 @@ async function resolveAssetFeed(assetId) {
   } catch (e) { noteReadError(e); }
   return null;
 }
+const US_HOLIDAYS_FE = new Set(["2026-01-01","2026-01-19","2026-02-16","2026-04-03","2026-05-25","2026-06-19","2026-07-03","2026-09-07","2026-11-26","2026-12-25","2027-01-01","2027-01-18","2027-02-15","2027-03-26","2027-05-31","2027-06-18","2027-07-05","2027-09-06","2027-11-25","2027-12-24"]);
+const US_EARLY_FE = new Set(["2026-07-02","2026-11-27","2026-12-24","2027-07-02","2027-11-26"]);
 function usMarketOpenFE(atMs) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(atMs || Date.now()));
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(atMs || Date.now()));
   const g = (ty) => (parts.find((x) => x.type === ty) || {}).value;
   const wd = g("weekday");
   if (wd === "Sat" || wd === "Sun") return false;
+  const ds = g("year") + "-" + g("month") + "-" + g("day");
+  if (US_HOLIDAYS_FE.has(ds)) return false;
   const mins = Number(g("hour")) * 60 + Number(g("minute"));
-  return mins >= 570 && mins < 960;
+  return mins >= 570 && mins < (US_EARLY_FE.has(ds) ? 780 : 960);
 }
 function nextUsOpenMs(fromMs) {
   let t0 = Math.floor((fromMs || Date.now()) / 60000) * 60000 + 60000;
@@ -3326,7 +3330,7 @@ function renderRecords() {
     if (!S.myBets.length) { list.innerHTML = '<div class="empty">' + t("rec.noBets") + '</div>'; return; }
     list.innerHTML = S.myBets.slice(0, 15).map((b) => {
       const res = b.result ? (b.result === "win" ? '<span class="rec-result win">' + t("rec.win") + '</span>' : b.result === "draw" ? '<span class="rec-result draw">' + t("rec.draw") + '</span>' : b.result === "one" ? '<span class="rec-result draw">' + t("rec.one") + '</span>' : b.result === "cancel" ? '<span class="rec-result draw">' + t("rec.cancel") + '</span>' : '<span class="rec-result lose">' + t("rec.lose") + '</span>') : '<span class="rec-result">' + t("rec.ongoing") + '</span>';
-      return '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: b.roundId }) + ' · <span class="' + (b.side === "long" ? "rec-side-long" : "rec-side-short") + '">' + (b.side === "long" ? t("bet.long") : t("bet.short")) + '</span> <b>' + fmt(b.amount) + ' $SI</b></span>' + res + '</div><div class="rec-sub">' + new Date(b.at).toLocaleString(LANG === "zh" ? "zh-CN" : "en-US") + (b.tx ? " · " + b.tx.slice(0, 18) + "…" : t("rec.demo")) + '</div></div>';
+      return '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: b.roundId }) + ' · <span class="' + (b.side === "long" ? "rec-side-long" : "rec-side-short") + '">' + (b.side === "long" ? t("bet.long") : t("bet.short")) + '</span> <b>' + fmt(b.amount) + (b.currency === "USDT" ? ' $USDT' : ' $SI') + '</b></span>' + res + '</div><div class="rec-sub">' + new Date(b.at).toLocaleString(LANG === "zh" ? "zh-CN" : "en-US") + (b.tx ? " · " + b.tx.slice(0, 18) + "…" : t("rec.demo")) + '</div></div>';
     }).join("");
   } else if (recTab === "round") {
     const cur = latestViewRec(); // 第四轮 G2：上一局块只认当前品类+模式的最近已结算局（旧版拿 S.rounds[0] 全局最新，切品类后仍显示旧品类结果且切换时不重渲染）
@@ -3339,8 +3343,8 @@ function renderRecords() {
     const viewOk = S.roundId != null && S.roundAssetId === S.assetId && S.roundMode === S.mode;
     const mine = viewOk ? S.myBets.filter((b) => b.roundId === S.roundId) : [];
     const curBlock = viewOk
-      ? '<div class="rec"><div class="rec-top"><span>' + roundTitle(S.roundId) + '</span><span>' + (S.phase === "betting" ? t("rec.betting") : t("rec.locked")) + '</span></div><div class="rec-sub">' + t("price.lock") + ' ' + fmtPriceFor(S.lockPrice, S.assetId) + ' · ' + t("price.cur") + ' ' + fmtPriceFor(S.price, S.assetId) + ' · ' + t("pool.long") + ' ' + fmt(S.pools.long) + ' / ' + t("pool.short") + ' ' + fmt(S.pools.short) + ' $SI</div><div class="rec-sub">' + t("rec.myBetLine", { x: mine.length ? mine.map((b) => (b.side === "long" ? t("bet.long") + " " : t("bet.short") + " ") + fmt(b.amount) + " $SI").join("，") : t("rec.none") }) + '</div></div>'
-      : '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: "—" }) + '</span><span>' + t("chart.waiting") + '</span></div><div class="rec-sub">' + t("price.lock") + ' — · ' + t("price.cur") + ' — · ' + t("pool.long") + ' — / ' + t("pool.short") + ' — $SI</div><div class="rec-sub">' + t("rec.myBetLine", { x: t("rec.none") }) + '</div></div>';
+      ? '<div class="rec"><div class="rec-top"><span>' + roundTitle(S.roundId) + '</span><span>' + (S.phase === "betting" ? t("rec.betting") : t("rec.locked")) + '</span></div><div class="rec-sub">' + t("price.lock") + ' ' + fmtPriceFor(S.lockPrice, S.assetId) + ' · ' + t("price.cur") + ' ' + fmtPriceFor(S.price, S.assetId) + ' · ' + t("pool.long") + ' ' + fmt(S.pools.long) + ' / ' + t("pool.short") + ' ' + fmt(S.pools.short) + (S.currency === "USDT" ? ' $USDT' : ' $SI') + '</div><div class="rec-sub">' + t("rec.myBetLine", { x: mine.length ? mine.map((b) => (b.side === "long" ? t("bet.long") + " " : t("bet.short") + " ") + fmt(b.amount) + (b.currency === "USDT" ? " $USDT" : " $SI")).join("，") : t("rec.none") }) + '</div></div>'
+      : '<div class="rec"><div class="rec-top"><span>' + t("round.new", { id: "—" }) + '</span><span>' + t("chart.waiting") + '</span></div><div class="rec-sub">' + t("price.lock") + ' — · ' + t("price.cur") + ' — · ' + t("pool.long") + ' — / ' + t("pool.short") + ' — ' + (S.currency === "USDT" ? '$USDT' : '$SI') + '</div><div class="rec-sub">' + t("rec.myBetLine", { x: t("rec.none") }) + '</div></div>';
     list.innerHTML = curBlock
       + (cur ? '<div class="rec"><div class="rec-top"><span>' + t("rec.prevRound", { id: cur.id }) + '</span><span>' + (cur.result === "long" ? t("rec.longWin") : cur.result === "short" ? t("rec.shortWin") : cur.result === "draw" ? t("rec.drawR") : cur.result === "one" ? t("rec.oneR") : cur.result === "cancel" ? t("rec.cancelR") : "—") + '</span></div><div class="rec-sub">' + t("rec.lockSettle", { lock: fmtPriceFor(cur.lock, cur.assetId), close: fmtPriceFor(cur.close, cur.assetId) }) + '</div></div>' : "");
   } else {
@@ -5564,11 +5568,13 @@ function init() {
     document.querySelectorAll(".pair-row").forEach((r) => { r.onclick = () => { const id = Number(r.dataset.asset); const m = pickerMode; $("pairSheet").classList.remove("open"); if (m && m !== S.mode) setMode(m); if (id !== S.assetId) setAsset(id); }; });
     $("rulesLink").onclick = () => { syncModeSheet(); $("modeSheet").classList.add("open"); };
     setInterval(() => {
-      const bp = $("betPanel");
-      if (bp) bp.classList.toggle("locked", S.phase === "locked");
-      updateStatusBar();
-      if (S.phase === "locked") setSegs(2);
-      else if (S.phase === "betting") { const d = roundDuration(); setSegs(S.cdSec !== null && d && S.cdSec < d / 2 ? 2 : 1); }
+      try {
+        if (S.phase === "locked") setSegs(2);
+        else if (S.phase === "betting") { const d = roundDuration(); setSegs(S.cdSec !== null && d && S.cdSec < d / 2 ? 2 : 1); }
+        else if (S.phase === "prestart") setSegs(1);
+      } catch (e) {}
+      try { const bp = $("betPanel"); if (bp) bp.classList.toggle("locked", S.phase === "locked"); } catch (e) {}
+      try { updateStatusBar(); } catch (e) {}
     }, 400);
   });
   safeStep("refLink", updateRefLink);
