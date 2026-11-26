@@ -4515,7 +4515,20 @@ function drawFlowLine(ctx, W, H) {
   const headX = fresh ? nowX : X(lastPt.t);
   const headY = y(animP);
   const lineCol = S.phase === "locked" ? "#b8e62e" : "#ffa02e";
-  const drawnSegs = splitSegs(pts, 4);
+  // round40：绘制层按 0.2 秒等距、取每格最后一个真实价——竞品就是这么画的：
+  // 折线是均匀的波浪锯齿，而不是逐笔挤在同一竖线上的梳子齿。数据层一笔不改，只改画法。
+  const resample = (seg) => {
+    if (seg.length < 3) return seg;
+    const out = [seg[0]];
+    let bucket = Math.floor(seg[0].t / 0.2);
+    for (let i = 1; i < seg.length - 1; i++) {
+      const b = Math.floor(seg[i].t / 0.2);
+      if (b !== bucket) { out.push(seg[i - 1]); bucket = b; }
+    }
+    out.push(seg[seg.length - 1]);
+    return out;
+  };
+  const drawnSegs = splitSegs(pts, 4).map(resample);
   if (fresh && drawnSegs.length) drawnSegs[drawnSegs.length - 1].push({ t: nowCal, p: animP });
   for (const sm of drawnSegs) {
     if (sm.length < 2) continue;
@@ -4526,20 +4539,8 @@ function drawFlowLine(ctx, W, H) {
     ctx.moveTo(XY[0][0], XY[0][1]);
     for (let i = 1; i < XY.length; i++) ctx.lineTo(XY[i][0], XY[i][1]);
     ctx.strokeStyle = lineCol;
-    ctx.globalAlpha = 0.20;
-    ctx.lineWidth = 6;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = 2.8;
-    ctx.stroke();
-    ctx.lineTo(XY[XY.length - 1][0], padT + plotH);
-    ctx.lineTo(XY[0][0], padT + plotH);
-    ctx.closePath();
-    const fg = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-    fg.addColorStop(0, S.phase === "locked" ? "rgba(184,230,46,.26)" : "rgba(255,160,46,.30)");
-    fg.addColorStop(1, "rgba(255,160,46,0)");
-    ctx.fillStyle = fg;
-    ctx.fill();
+    ctx.lineWidth = 2.2;
+    ctx.stroke(); // round40：竞品同款单根干净线——无线下填充、无线外光晕
   }
   // 本局起点金点（压在开始价与线交界处）
   if (lockP && startS && startS >= t0 && startS <= nowCal) {
