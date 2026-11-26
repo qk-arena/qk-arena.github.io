@@ -1243,7 +1243,7 @@ function applyI18n() {
 const S = {
   mode: defaultMode(),        // 上线开局配置决定（默认 speed，2026-11-25 定版）
   currency: (() => { try { return localStorage.getItem("dk_currency") === "USDT" ? "USDT" : "SI"; } catch (e) { return "SI"; } })(), // 下注币种（round15 双币）
-  assetId: 1,                 // 品类：1=BTC（默认）2=ETH 3=BNB 4=XAU 5=XAG 6=NVDA；0=SI 品类已按用户 2026-11-26 指令下架（合约与 keeper 不动，仅前端不展示）
+  assetId: 1,                 // 品类：1=BTC（默认）2=ETH 3=BNB 6=NVDA；0=SI、4=XAU、5=XAG 已按用户 2026-11-26 指令下架（合约与 keeper 不动，仅前端不展示）
   price: null, open24: null, chg24: null,
   source: null, sourceLabel: "", srcKey: "src.connecting",
   trades: [],                 // {t, isBuy, usd}
@@ -2221,11 +2221,12 @@ function mergeFlowSeeds() {
   if (added && typeof KLINE !== "undefined") KLINE.dirty = true;
 }
 /* round38 通用合并：把一批真实价格点（{t 秒, p}）并入 flowPts——
-   只收过去 1500s 内、偏离现价 ≤0.5%、与已有真点间隔 ≥0.1s 的点（去重），二分插入保序。 */
-function mergeFlowPoints(list) {
+   只收过去 1500s 内、偏离参考价 ≤0.5%、与已有真点间隔 ≥0.1s 的点（去重），二分插入保序。
+   round39：参考价可传入批次自身中位数（整窗回填时现价可能已离老点 >0.5%，不许误杀真历史）。 */
+function mergeFlowPoints(list, refP) {
   if (S.assetId === 0 || !list || !list.length) return;
   if (flowMeta.assetId !== S.assetId || !flowPts.length) return;
-  const ref = S.price || flowPts[flowPts.length - 1].p;
+  const ref = refP || S.price || flowPts[flowPts.length - 1].p;
   if (!ref) return;
   const wallS = Date.now() / 1000;
   let added = 0;
@@ -2241,28 +2242,38 @@ function mergeFlowPoints(list) {
   }
   if (added && typeof KLINE !== "undefined") KLINE.dirty = true;
 }
-/* round38 最近成交回填：断线/切换后用交易所 REST 拉最近约 90 秒真实成交补密线尾，
-   Vision aggTrades 优先、Gate trades 兜底（都是真实成交，不是编造）。 */
+/* round39 整窗成交回填：aggTrades 向后翻页拉满整个可见窗口（约 500 秒）的真实成交，
+   取代 1 秒 K 线收盘价当主历史——种子台阶感就是那么来的。真实成交怎么走，线就怎么画。
+   Vision 优先、Gate 最近 1000 笔兜底；批次以自身中位数做合理性参考。 */
 async function backfillRecentTrades(id) {
   const meta = ASSETS_META[id];
   if (!meta || meta.kind !== "crypto") return;
   const g = gen;
   const nowMs = Date.now();
-  let trades = null;
-  try {
-    const u = "https://data-api.binance.vision/api/v3/aggTrades?symbol=" + meta.symbol + "&startTime=" + (nowMs - 90000) + "&endTime=" + nowMs + "&limit=1000";
-    const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
-    if (r.ok) { const j = await r.json(); if (Array.isArray(j) && j.length) trades = j.map((x) => ({ t: x.T / 1000, p: parseFloat(x.p) })); }
-  } catch (e) {}
-  if (!trades) {
+  let all = [];
+  let endTime = nowMs;
+  for (let page = 0; page < 4; page++) {
+    try {
+      const u = "https://data-api.binance.vision/api/v3/aggTrades?symbol=" + meta.symbol + "&endTime=" + endTime + "&limit=1000";
+      const r = await fetch(u, { signal: AbortSignal.timeout(6000) });
+      if (!r.ok) break;
+      const j = await r.json();
+      if (!Array.isArray(j) || !j.length) break;
+      all = j.map((x) => ({ t: x.T / 1000, p: parseFloat(x.p) })).concat(all);
+      endTime = Number(j[0].T) - 1;
+      if (Number(j[0].T) <= nowMs - 500000) break;
+    } catch (e) { break; }
+  }
+  if (!all.length) {
     try {
       const u2 = "https://api.gateio.ws/api/v4/spot/trades?currency_pair=" + meta.pairU + "&from=" + Math.floor((nowMs - 90000) / 1000) + "&to=" + Math.floor(nowMs / 1000) + "&limit=1000";
       const r2 = await fetch(u2, { signal: AbortSignal.timeout(6000) });
-      if (r2.ok) { const j2 = await r2.json(); if (Array.isArray(j2) && j2.length) trades = j2.map((x) => ({ t: Number(x.create_time_ms) / 1000, p: parseFloat(x.price) })); }
+      if (r2.ok) { const j2 = await r2.json(); if (Array.isArray(j2) && j2.length) all = j2.map((x) => ({ t: Number(x.create_time_ms) / 1000, p: parseFloat(x.price) })); }
     } catch (e) {}
   }
-  if (!trades || g !== gen || S.assetId !== id) return;
-  mergeFlowPoints(trades);
+  if (!all.length || g !== gen || S.assetId !== id) return;
+  const sorted = all.map((k) => k.p).sort((a, b) => a - b);
+  mergeFlowPoints(all, sorted[Math.floor(sorted.length / 2)]);
 }
 /* round38 每秒级种子：1 秒 K 线收盘价（每秒一个真实点）把整段窗口铺密，
    取代只有每分钟 3 点的粗种子当主种子源；失败时退回最近成交回填 + 分钟种子。 */
@@ -3449,11 +3460,11 @@ const BGM = { ctx: null, master: null, musicGain: null, beepGain: null, on: fals
 function bgmLoadState() {
   try {
     const v = JSON.parse(localStorage.getItem("qk_bgm_v2") || "{}");
-    return { muted: "muted" in v ? !!v.muted : false, volume: typeof v.volume === "number" ? v.volume : 0.8 };
+    return { muted: false, volume: typeof v.volume === "number" ? v.volume : 0.8 }; // round39：静音不跨次保存——用户口径「进去就有音乐」，每次进入默认有声
   } catch (e) { return { muted: false, volume: 0.8 }; }
 }
 function bgmSave() {
-  try { localStorage.setItem("qk_bgm_v2", JSON.stringify({ muted: BGM.muted, volume: BGM.volume })); } catch (e) {}
+  try { localStorage.setItem("qk_bgm_v2", JSON.stringify({ volume: BGM.volume })); } catch (e) {} // round39：只存音量，不存静音
 }
 function bgmBpm() { return 142; } /* v2 固定 142 BPM：燃曲不漂速 */
 function bgmEnsure() {
@@ -3736,6 +3747,13 @@ setInterval(() => {
 }, 2000);
 /* 首次点按任意处即解锁/拉起音乐（移动端 WebView 自动播放策略） */
 document.addEventListener("pointerdown", () => {
+  try {
+    if (BGM.muted) return;
+    if (BGM.ctx && BGM.ctx.state !== "running") BGM.ctx.resume();
+    else if (!BGM.on) startBgm();
+  } catch (e) {}
+}, true);
+document.addEventListener("touchend", () => {
   try {
     if (BGM.muted) return;
     if (BGM.ctx && BGM.ctx.state !== "running") BGM.ctx.resume();
@@ -4386,7 +4404,7 @@ function drawFlowLine(ctx, W, H) {
   const tgt = flowAxisTarget(pts.map((k) => k.p), lockP, lastPt.p);
   if (!tgt) return;
   if (flowAxis.lo === null) { flowAxis.lo = tgt.lo; flowAxis.hi = tgt.hi; }
-  else { flowAxis.lo += (tgt.lo - flowAxis.lo) * 0.15; flowAxis.hi += (tgt.hi - flowAxis.hi) * 0.15; }
+  else { flowAxis.lo += (tgt.lo - flowAxis.lo) * 0.35; flowAxis.hi += (tgt.hi - flowAxis.hi) * 0.35; } // round39：纵轴近即时跟随
   const lo = flowAxis.lo, hi = flowAxis.hi;
   const y = (v) => padT + (1 - (v - lo) / (hi - lo)) * plotH;
   // 涨跌分区（以开始价为界）
@@ -4415,7 +4433,7 @@ function drawFlowLine(ctx, W, H) {
     ctx.textAlign = "left";
     ctx.fillText(fmtPrice(v).replace("$", ""), padL + plotW + 6, yy);
   }
-  const tag = (cx, cy, price, caption, color, place) => {
+  const tag = (cx, cy, price, caption, color, place, above) => {
     ctx.font = "bold 11px sans-serif";
     const w1 = ctx.measureText(price).width;
     ctx.font = "9px sans-serif";
@@ -4426,12 +4444,15 @@ function drawFlowLine(ctx, W, H) {
     else if (place === "left") bx = cx - tw - 8;
     else bx = cx - tw / 2;
     bx = Math.min(Math.max(bx, 2), Math.max(2, W - tw - 2));
-    let by = cy + 10; if (by + th > H - 4) by = cy - th - 10;
+    let by = above ? cy - th - 10 : cy + 10; if (by < 2) by = cy + 10; if (by + th > H - 4) by = cy - th - 10;
     by = Math.min(Math.max(by, 2), Math.max(2, H - th - 2));
     ctx.fillStyle = color;
+    ctx.shadowColor = "rgba(0,0,0,.55)";
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, 5); else ctx.rect(bx, by, tw, th);
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.fillStyle = "#171204";
     ctx.textAlign = "center";
     ctx.font = "bold 11px sans-serif";
@@ -4449,7 +4470,7 @@ function drawFlowLine(ctx, W, H) {
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(padL + plotW, yy); ctx.stroke();
     ctx.setLineDash([]);
-    if (startS && startS >= t0 - 1 && startS <= t1) pendingTags.push([X(startS), yy, fmtPrice(lockP).replace("$", ""), t("chart.startPrice"), "#e8e13a", startS <= t0 + (win.past + win.future) * 0.3 ? "right" : "center"]);
+    if (startS && startS >= t0 - 1 && startS <= t1) pendingTags.push([X(startS), yy, fmtPrice(lockP).replace("$", ""), t("chart.startPrice"), "#e8e13a", startS <= t0 + (win.past + win.future) * 0.3 ? "right" : "center", true]); // round39：开始价签贴开始点上方，不再压在开盘尖刺簇里
   }
   // 结算价虚线 + 结束价签（已结算才有，线继续流过不停）
   if (S.chartClose && S.chartClose.time >= t0 && S.chartClose.time <= nowCal + 1) {
@@ -4462,6 +4483,7 @@ function drawFlowLine(ctx, W, H) {
     pendingTags.push([X(S.chartClose.time), yy, fmtPrice(S.chartClose.price).replace("$", ""), t("chart.endPrice"), "#e8e13a", "left"]);
   }
   // 开始/结束竖线 + 底部标签（与行情同一时间轴）
+  const fmtT = (ms) => new Date(ms).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false });
   const vTag = (sec, txt, col) => {
     if (sec === null || sec === undefined || sec < t0 || sec > t1) return;
     const xx = X(sec);
@@ -4469,7 +4491,7 @@ function drawFlowLine(ctx, W, H) {
     ctx.beginPath(); ctx.moveTo(xx, padT); ctx.lineTo(xx, padT + plotH); ctx.stroke(); ctx.setLineDash([]);
     ctx.font = "9px sans-serif";
     const w = ctx.measureText(txt).width + 8;
-    const bx = Math.min(Math.max(xx - w / 2, 2), Math.max(2, W - w - 2));
+    const bx = Math.min(Math.max(xx - w / 2, 118), Math.max(2, W - w - 2)); // round39：底部标签避开左下悬浮切换钮（曾被它挡住一半）
     ctx.fillStyle = "rgba(16,20,30,.88)";
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(bx, H - 15, w, 13, 3); else ctx.rect(bx, H - 15, w, 13);
@@ -4478,8 +4500,8 @@ function drawFlowLine(ctx, W, H) {
     ctx.textAlign = "center";
     ctx.fillText(txt, bx + w / 2, H - 8);
   };
-  vTag(startS, LANG === "zh" ? "开始" : "Start", "rgba(216,180,90,.5)");
-  vTag(closeS, LANG === "zh" ? "结束" : "End", "rgba(238,241,248,.4)");
+  vTag(startS, (LANG === "zh" ? "开始 " : "Start ") + fmtT(startS * 1000), "rgba(216,180,90,.5)");
+  vTag(closeS, closeS ? (LANG === "zh" ? "结束 " : "End ") + fmtT(closeS * 1000) : "", "rgba(238,241,248,.4)");
   // 线体：显示平滑（中值 + 加权，只平滑已收到的真实点，不编造走势）
   // round38：不做任何平滑——竞品的线是原始逐笔锯齿直连，每一笔抖动都在；
   // 之前的中值+加权平滑把真实转折全抹平了，是线看起来慢的主因。
@@ -4487,7 +4509,7 @@ function drawFlowLine(ctx, W, H) {
   if (flowMeta.animP == null) flowMeta.animP = lastPt.p;
   const dtF = flowMeta.animAt ? Math.min(0.1, (Date.now() - flowMeta.animAt) / 1000) : 0.016;
   flowMeta.animAt = Date.now();
-  flowMeta.animP += (lastPt.p - flowMeta.animP) * (1 - Math.exp(-dtF / 0.08)); // round38：线头贴价（τ 0.25->0.08），竞品的点是逐笔跳的，不许滑行
+  flowMeta.animP = lastPt.p; // round39：线头零趋近——最新真实价是多少就跳到多少（用户：怎么走怎么画，别害怕）
   const animP = flowMeta.animP;
   const fresh = nowCal - lastPt.t <= 1.5;
   const headX = fresh ? nowX : X(lastPt.t);
@@ -4508,7 +4530,7 @@ function drawFlowLine(ctx, W, H) {
     ctx.lineWidth = 6;
     ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 2.8;
     ctx.stroke();
     ctx.lineTo(XY[XY.length - 1][0], padT + plotH);
     ctx.lineTo(XY[0][0], padT + plotH);
@@ -4569,15 +4591,12 @@ function drawFlowLine(ctx, W, H) {
     ctx.textAlign = "center";
     ctx.fillText(label, bx + bw / 2, by + bh / 2 + 0.5);
   }
-  for (const tg of pendingTags) tag(tg[0], tg[1], tg[2], tg[3], tg[4], tg[5]);
+  for (const tg of pendingTags) tag(tg[0], tg[1], tg[2], tg[3], tg[4], tg[5], tg[6]);
   // 横轴时间：窗口起止（右端是未来时刻）
   ctx.fillStyle = "#5d6a86";
   ctx.font = "10px sans-serif";
-  ctx.textAlign = "left";
-  const fmtT = (ms) => new Date(ms).toLocaleTimeString(LANG === "zh" ? "zh-CN" : "en-US", { hour12: false });
-  ctx.fillText(fmtT(t0 * 1000), padL, H - 8);
   ctx.textAlign = "right";
-  ctx.fillText(fmtT(t1 * 1000), W - 4, H - 8);
+  ctx.fillText(fmtT(t1 * 1000), W - 4, H - 8); // round39：左下角时钟删除（被悬浮切换钮挡住），开始时间已并入开始标记标签
 }
 
 function drawLine() {
@@ -5496,8 +5515,6 @@ setTimeout(function () {
       <button class="pair-row" data-asset="1"><span class="pair-coin has-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#F7931A"/><path fill="#FFF" fill-rule="nonzero" d="M23.189 14.02c.314-2.096-1.283-3.223-3.465-3.975l.708-2.84-1.728-.43-.69 2.765c-.454-.114-.92-.22-1.385-.326l.695-2.783L15.596 6l-.708 2.839c-.376-.086-.746-.17-1.104-.26l.002-.009-2.384-.595-.46 1.846s1.283.294 1.256.312c.7.175.826.638.805 1.006l-.806 3.235c.048.012.11.03.18.057l-.183-.045-1.13 4.532c-.086.212-.303.531-.793.41.018.025-1.256-.313-1.256-.313l-.858 1.978 2.25.561c.418.105.828.215 1.231.318l-.715 2.872 1.727.43.708-2.84c.472.127.93.245 1.378.357l-.706 2.828 1.728.43.715-2.866c2.948.558 5.164.333 6.097-2.333.752-2.146-.037-3.385-1.588-4.192 1.13-.26 1.98-1.003 2.207-2.538zm-3.95 5.538c-.533 2.147-4.148.986-5.32.695l.95-3.805c1.172.293 4.929.872 4.37 3.11zm.535-5.569c-.487 1.953-3.495.96-4.47.717l.86-3.45c.975.243 4.118.696 3.61 2.733z"/></g></svg></span><span class="pair-row-name">BTC/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
       <button class="pair-row" data-asset="2"><span class="pair-coin has-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#627EEA"/><g fill="#FFF" fill-rule="nonzero"><path fill-opacity=".602" d="M16.498 4v8.87l7.497 3.35z"/><path d="M16.498 4L9 16.22l7.498-3.35z"/><path fill-opacity=".602" d="M16.498 21.968v6.027L24 17.616z"/><path d="M16.498 27.995v-6.028L9 17.616z"/><path fill-opacity=".2" d="M16.498 20.573l7.497-4.353-7.497-3.348z"/><path fill-opacity=".602" d="M9 16.22l7.498 4.353v-7.701z"/></g></g></svg></span><span class="pair-row-name">ETH/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
       <button class="pair-row" data-asset="3"><span class="pair-coin has-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none"><circle cx="16" cy="16" r="16" fill="#F3BA2F"/><path fill="#FFF" d="M12.116 14.404L16 10.52l3.886 3.886 2.26-2.26L16 6l-6.144 6.144 2.26 2.26zM6 16l2.26-2.26L10.52 16l-2.26 2.26L6 16zm6.116 1.596L16 21.48l3.886-3.886 2.26 2.259L16 26l-6.144-6.144-.003-.003 2.263-2.257zM21.48 16l2.26-2.26L26 16l-2.26 2.26L21.48 16zm-3.188-.002h.002V16L16 18.294l-2.291-2.29-.004-.004.004-.003.401-.402.195-.195L16 13.706l2.293 2.293z"/></g></svg></span><span class="pair-row-name">BNB/USDT</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
-      <button class="pair-row" data-asset="4"><span class="pair-coin has-logo"><img src="data:image/webp;base64,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" alt="XAUT"></span><span class="pair-row-name">XAU/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
-      <button class="pair-row" data-asset="5"><span class="pair-coin">Ag</span><span class="pair-row-name">XAG/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
       <button class="pair-row" data-asset="6"><span class="pair-coin has-logo"><svg fill="#76B900" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>NVIDIA</title><path d="M8.948 8.798v-1.43a6.7 6.7 0 0 1 .424-.018c3.922-.124 6.493 3.374 6.493 3.374s-2.774 3.851-5.75 3.851c-.398 0-.787-.062-1.158-.185v-4.346c1.528.185 1.837.857 2.747 2.385l2.04-1.714s-1.492-1.952-4-1.952a6.016 6.016 0 0 0-.796.035m0-4.735v2.138l.424-.027c5.45-.185 9.01 4.47 9.01 4.47s-4.08 4.964-8.33 4.964c-.37 0-.733-.035-1.095-.097v1.325c.3.035.61.062.91.062 3.957 0 6.82-2.023 9.593-4.408.459.371 2.34 1.263 2.73 1.652-2.633 2.208-8.772 3.984-12.253 3.984-.335 0-.653-.018-.971-.053v1.864H24V4.063zm0 10.326v1.131c-3.657-.654-4.673-4.46-4.673-4.46s1.758-1.944 4.673-2.262v1.237H8.94c-1.528-.186-2.73 1.245-2.73 1.245s.68 2.412 2.739 3.11M2.456 10.9s2.164-3.197 6.5-3.533V6.201C4.153 6.59 0 10.653 0 10.653s2.35 6.802 8.948 7.42v-1.237c-4.84-.6-6.492-5.936-6.492-5.936z"/></svg></span><span class="pair-row-name">NVDA/USD</span><span class="pair-row-tag" data-i18n="mode.current">当前</span></button>
     </div>
     <button class="sheet-close" id="pairSheetClose" data-i18n="mode.close">关闭</button>
