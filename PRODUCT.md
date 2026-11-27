@@ -7,4 +7,4 @@
 - 主色：深空黑 #05070c · 乾坤金 #c9a24d
 - 网址：https://qk-arena.github.io/
 - 出品：一凡实验室 OneFan Lab
-- 联系方式（全产品统一）：Telegram @onefanlab · 邮箱 xiaofanlab@gmail.com
+- 联系方式（全产品统一）：Telegram @onefanlab · 邮箱 onefanlab@gmail.com
