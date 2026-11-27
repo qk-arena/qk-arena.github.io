@@ -1301,19 +1301,19 @@ function stopFeeds() {
   if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
 }
 let lastTickAt = 0; // 最近一笔真实 tick 时刻（缺陷 C 数据看门狗用）
-function intakeTrade(isBuy, price, qty, g, tsMs) {
+function intakeTrade(isBuy, price, qty, g, tsMs, srcRank) {
   if (g !== undefined && g !== gen) return; // 旧连接/旧品类的迟到 tick 一律丢弃（缺陷 B）
   lastWsTickAt = Date.now(); // round38：只有真成交才算 WS 活着——心跳/订阅确认不许冒充行情骗过 REST 看门狗
   const now = Date.now();
   const usd = price * qty;
   S.trades.push({ t: now, isBuy, usd });
   while (S.trades.length && S.trades[0].t < now - 60000) S.trades.shift();
-  notePrice(price, false, g, undefined, tsMs);
+  notePrice(price, false, g, undefined, tsMs, srcRank);
   updatePower();
 }
 let _suspectTick = null, _suspectAt = 0;
 let _heldTick = null, _heldAt = 0; // round42 共识扣留状态
-function notePrice(p, _legacyFromSim, g, assetId, tsMs) {
+function notePrice(p, _legacyFromSim, g, assetId, tsMs, srcRank) {
   // 代际/品类校验（第二轮返工·缺陷 B）：切品类后，旧品类连接里在途的异步回调
   // （轮询 fetch、池子读数）可能迟到落地，旧逻辑照单全收，于是出现「BTC 顶栏
   // 顶着 SI 的价」。带 g/assetId 的调用先验明正身，对不上直接丢弃。
@@ -1349,10 +1349,10 @@ function notePrice(p, _legacyFromSim, g, assetId, tsMs) {
     if (_med > 0) {
       const _dev = Math.abs(p - _med) / _med;
       if (_heldTick !== null) {
-        if (Math.abs(p - _heldTick) / _heldTick <= 0.0003) { _heldTick = null; _heldAt = 0; }
-        else if (_dev <= 0.0005) { _heldTick = null; _heldAt = 0; }
+        if (Math.abs(p - _heldTick) / _heldTick <= 0.00015) { _heldTick = null; _heldAt = 0; }
+        else if (_dev <= 0.00025) { _heldTick = null; _heldAt = 0; }
         else { _heldTick = p; _heldAt = Date.now(); return; }
-      } else if (_dev > 0.0005) { _heldTick = p; _heldAt = Date.now(); return; }
+      } else if (_dev > 0.00025) { _heldTick = p; _heldAt = Date.now(); return; } // round53：扣留线 0.05%→0.025%（针刺幅度 0.03%~0.045% 必须扣得住）
     }
   }
   if (!S._realSeen) {
@@ -1364,7 +1364,7 @@ function notePrice(p, _legacyFromSim, g, assetId, tsMs) {
   }
   S.price = p;
   sampleRoundBuf(p); // 本局采样缓冲（图表返工）：只采真实价（演示价路径已删，见 F3）
-  sampleFlowBuf(p, tsMs); // round35 流水采样：带交易所时间戳（时间轴按真实时间比例，规格 §3）
+  sampleFlowBuf(p, tsMs, srcRank); // round35 流水采样：带交易所时间戳（时间轴按真实时间比例，规格 §3）
   const pel = $("price");
   if (pel) {
     pel.textContent = fmtPrice(p);
@@ -1476,7 +1476,7 @@ function connectProvider(idx) {
     catch (e) { return failover(idx); }
     ws.onopen = () => { if (g === gen) setSource("Binance Vision", true); };
     ws.onmessage = (ev) => {
-      try { const j = JSON.parse(ev.data); if (j.p) intakeTrade(j.m === false, parseFloat(j.p), parseFloat(j.q || 0), g, j.T); } catch (e) {}
+      try { const j = JSON.parse(ev.data); if (j.p) intakeTrade(j.m === false, parseFloat(j.p), parseFloat(j.q || 0), g, j.T, 0); } catch (e) {}
     };
     ws.onerror = () => { if (g === gen) failover(idx); };
     ws.onclose = () => { if (g === gen) failover(idx); };
@@ -1512,7 +1512,7 @@ function connectProvider(idx) {
         const j = JSON.parse(ev.data);
         if (j.event === "update" && j.result) {
           const r = j.result;
-          intakeTrade(r.side === "buy", parseFloat(r.price), parseFloat(r.amount), g, r.create_time_ms);
+          intakeTrade(r.side === "buy", parseFloat(r.price), parseFloat(r.amount), g, r.create_time_ms, 1);
         }
       } catch (e) {}
     };
@@ -1772,13 +1772,13 @@ function startCryptoWs(id) {
   };
   const sym = meta.symbol, pairU = meta.pairU, inst = sym.replace("USDT", "-USDT");
   mk("wss://data-stream.binance.vision/ws/" + sym.toLowerCase() + "@aggTrade", null,
-    (j) => { if (j && j.p) { srcOnce("Binance Vision · 逐笔"); intakeTrade(j.m === false, parseFloat(j.p), parseFloat(j.q || 0), g, j.T); } });
+    (j) => { if (j && j.p) { srcOnce("Binance Vision · 逐笔"); intakeTrade(j.m === false, parseFloat(j.p), parseFloat(j.q || 0), g, j.T, 0); } });
   mk("wss://api.gateio.ws/ws/v4/",
     (s) => { s.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "spot.trades", event: "subscribe", payload: [pairU] })); s._pingT = setInterval(() => { try { s.send(JSON.stringify({ time: Math.floor(Date.now() / 1000), channel: "spot.ping" })); } catch (e) {} }, 20000); },
-    (j) => { if (j && j.event === "update" && j.result) { const r = j.result; srcOnce("Gate.io · 逐笔"); intakeTrade(r.side === "buy", parseFloat(r.price), parseFloat(r.amount), g, r.create_time_ms); } });
+    (j) => { if (j && j.event === "update" && j.result) { const r = j.result; srcOnce("Gate.io · 逐笔"); intakeTrade(r.side === "buy", parseFloat(r.price), parseFloat(r.amount), g, r.create_time_ms, 1); } });
   mk("wss://ws.okx.com:8443/ws/v5/public",
     (s) => { s.send(JSON.stringify({ op: "subscribe", args: [{ channel: "trades", instId: inst }] })); s._pingT = setInterval(() => { try { s.send("ping"); } catch (e) {} }, 25000); },
-    (j) => { if (j && Array.isArray(j.data)) { for (const d of j.data) { srcOnce("OKX · 逐笔"); intakeTrade(d.side === "buy", parseFloat(d.px), parseFloat(d.sz || 0), g, d.ts ? Number(d.ts) : undefined); } } });
+    (j) => { if (j && Array.isArray(j.data)) { for (const d of j.data) { srcOnce("OKX · 逐笔"); intakeTrade(d.side === "buy", parseFloat(d.px), parseFloat(d.sz || 0), g, d.ts ? Number(d.ts) : undefined, 2); } } });
 }
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && S.assetId !== 0 && flowPts.length && calNowS() - flowPts[flowPts.length - 1].t > 5) { seedKlines(); if (ASSETS_META[S.assetId] && ASSETS_META[S.assetId].kind === "crypto") { seedFlowSeconds(S.assetId); backfillRecentTrades(S.assetId); } }
@@ -2193,7 +2193,7 @@ function sampleRoundBuf(p) {
 let flowPts = [];      // { t(秒), p } 当前品类连续采样序列
 let flowMeta = { assetId: null, dropRun: 0, dropAt: 0, animP: null, animAt: 0, grid: null, gridKey: "", lastTickS: 0 };
 let flowAxis = { lo: null, hi: null }; // round35 纵轴平滑状态（逐帧趋近目标范围）
-function sampleFlowBuf(p, tsMs) {
+function sampleFlowBuf(p, tsMs, srcRank) {
   if (S.assetId === 0) return; // SI 无图模式
   if (!p || !(p > 0)) return;
   if (flowMeta.assetId !== S.assetId) {
@@ -2220,6 +2220,16 @@ function sampleFlowBuf(p, tsMs) {
     if (add.length) { flowPts = add.concat(pts0); flowPts.sort((a, b) => a.t - b.t); }
   }
   const pts = flowPts;
+  // round54 单源定线：多家交易所报价彼此差 0.01%~0.04%，交错进同一条线必然锯齿——
+  // 线只跟当前最高优先级活源（0=Binance Vision、1=Gate、2=OKX）；低优先级源的 tick
+  // 只在高优先级源静默 >1.5 秒时才进线接管，高优先级一恢复立刻切回。切换瞬间一步到位，不拖泥带水。
+  if (typeof srcRank === "number") {
+    const seen = flowMeta.srcSeen || (flowMeta.srcSeen = {});
+    seen[srcRank] = wallS;
+    let best = srcRank;
+    for (const r in seen) { const rn = Number(r); if (wallS - seen[r] <= 1.5 && rn < best) best = rn; }
+    if (srcRank > best) return;
+  }
   // 离群过滤与本局采样同口径：偏离最近 5 点中位数 >0.8% 先丢弃，连续 3 个相隔 ≥1 秒的同向离群才认作真跳变放行
   if (pts.length >= 4) {
     const recent = pts.slice(-5).map((k) => k.p).sort((a, b) => a - b);
@@ -4500,6 +4510,34 @@ function traceMonoPath(ctx, XY) {
     ctx.bezierCurveTo(XY[i][0] + d / 3, XY[i][1] + (m[i] * d) / 3, XY[i + 1][0] - d / 3, XY[i + 1][1] - (m[i + 1] * d) / 3, XY[i + 1][0], XY[i + 1][1]);
   }
 }
+/* round53 针刺剔除（绘制层）：多源价差造成的孤立针刺点不许进图——
+   判据：某点与前后邻居都偏离 >0.02%，而前后邻居彼此相差 ≤0.01%（邻居一致、中间点孤立）→ 剔除；
+   连续两点以上同向偏移是真实台阶，保留。线尾最新点若偏离近 5 点中位数 >0.02% 且前一点贴合中位数，
+   本帧先不画它（等下一点确认或证伪）——线只跟已确认的价走。只作用于绘制副本，不动数据层。 */
+function scrubNeedles(pts) {
+  if (!pts || pts.length < 3) return pts;
+  let cur = pts;
+  for (let pass = 0; pass < 2; pass++) {
+    const out = [cur[0]];
+    let dropped = false;
+    for (let i = 1; i < cur.length - 1; i++) {
+      const a = out[out.length - 1].p, b = cur[i].p, c = cur[i + 1].p;
+      if (Math.abs(b - a) / a > 0.0002 && Math.abs(b - c) / c > 0.0002 && Math.abs(c - a) / a <= 0.00015) { dropped = true; continue; }
+      out.push(cur[i]);
+    }
+    out.push(cur[cur.length - 1]);
+    cur = out;
+    if (!dropped) break;
+  }
+  if (cur.length >= 4) {
+    const tail = cur[cur.length - 1];
+    const prev = cur[cur.length - 2];
+    const r5 = cur.slice(-6, -1).map((k) => k.p).sort((x, y) => x - y);
+    const med = r5[Math.floor(r5.length / 2)];
+    if (med > 0 && Math.abs(tail.p - med) / med > 0.0002 && Math.abs(prev.p - med) / med <= 0.00015) cur = cur.slice(0, -1);
+  }
+  return cur;
+}
 function drawFlowLine(ctx, W, H) {
   const em = $("chartEmpty");
   const staleEl = $("chartStale");
@@ -4522,6 +4560,7 @@ function drawFlowLine(ctx, W, H) {
   }
   if (!pts.length) pts = flowPts.slice(-2);
   pts = pts.filter((k) => k.t <= nowCal + 0.3);
+  pts = scrubNeedles(pts); // round53：针刺不进图（纵轴范围也随之只按真实价算）
   if (pts.length > 900) {
     const kk = Math.ceil(pts.length / 900);
     const th = pts.filter((_, i) => i % kk === 0);
@@ -4671,8 +4710,8 @@ function drawFlowLine(ctx, W, H) {
     ctx.lineCap = "round";
     traceMonoPath(ctx, XY);
     ctx.strokeStyle = lineCol;
-    ctx.lineWidth = 1.8;
-    ctx.stroke(); // round42：单根细线、单调三次连接——转折圆润但不造峰（简报 §3）
+    ctx.lineWidth = 2.0;
+    ctx.stroke(); // round53：线宽 1.8→2.0 落笔更实（原 round42 单根线不变）：单根细线、单调三次连接——转折圆润但不造峰（简报 §3）
   }
   // 本局起点金点（压在开始价与线交界处）
   if (lockP && startS && startS >= t0 && startS <= nowCal) {
