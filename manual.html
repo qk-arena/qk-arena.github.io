@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#05070c">
+  <title>产品说明书｜乾坤战场 QIANKUN ARENA</title>
+  <style>
+    :root { color-scheme: dark; --bg: #05070c; --text: #d7dce6; --muted: #9da6b6; --gold: #c9a24d; --yellow: #e8e13a; --line: #29303b; }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 16px; line-height: 1.9; }
+    main, footer { width: min(100% - 40px, 760px); margin-inline: auto; }
+    header { padding: 72px 0 58px; border-bottom: 1px solid var(--line); }
+    .eyebrow, .section-label { color: var(--gold); font-size: 12px; font-weight: 700; letter-spacing: .16em; line-height: 1.5; text-transform: uppercase; }
+    h1, h2, h3 { font-family: Georgia, "Times New Roman", "Songti SC", serif; font-weight: 400; line-height: 1.3; }
+    h1 { margin: 22px 0 8px; color: var(--yellow); font-size: clamp(42px, 9vw, 68px); letter-spacing: .04em; }
+    .english { margin: 0 0 30px; color: var(--gold); font-size: 13px; letter-spacing: .2em; }
+    .intro { max-width: 680px; font-size: 18px; line-height: 1.9; }
+    section { padding: 52px 0; border-bottom: 1px solid var(--line); }
+    h2 { margin: 12px 0 24px; color: #f0f1ec; font-size: clamp(28px, 6vw, 36px); }
+    h3 { margin: 0 0 12px; color: #f0f1ec; font-size: 22px; }
+    p { margin: 0 0 16px; }
+    p:last-child { margin-bottom: 0; }
+    .item { padding: 28px 0; border-top: 1px solid var(--line); }
+    .item:last-child { padding-bottom: 0; }
+    .item p { color: var(--text); }
+    ol { margin: 0; padding-left: 1.4em; }
+    li { padding-left: .3em; margin: 8px 0; }
+    li::marker { color: var(--gold); }
+    strong { color: #f0f1ec; font-weight: 600; }
+    .status { border-left: 2px solid var(--gold); padding-left: 20px; }
+    a { color: var(--gold); text-underline-offset: 4px; overflow-wrap: anywhere; }
+    a:hover { color: var(--yellow); }
+    a:focus-visible { outline: 2px solid var(--yellow); outline-offset: 4px; }
+    footer { padding: 38px 0 64px; color: var(--muted); font-size: 14px; }
+    footer p { margin-bottom: 10px; }
+    .home-link { display: inline-block; margin-top: 15px; padding: 10px 18px; border: 1px solid var(--gold); text-decoration: none; }
+    @media (min-width: 700px) { header { padding-top: 110px; padding-bottom: 76px; } section { padding: 70px 0; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">Product Manual / 产品说明书</div>
+      <h1>乾坤战场</h1>
+      <p class="english">QIANKUN ARENA</p>
+      <p class="intro">乾坤战场是基于 $SI 的链上预测市场产品：选方向、比涨跌，赢家分奖池。它适合想用小额、短周期、规则透明的方式参与行情预测的币圈用户。规则写在链上，每局结果可查。</p>
+    </header>
+
+    <section>
+      <div class="section-label">01 / Why</div>
+      <h2>为何做这个产品</h2>
+      <p>市面上的预测玩法，有的规则不透明，有的需要先把资金充进平台账户。我们想做一个不用注册、钱不离钱包的短周期预测产品，让每一局的开始价、结束价和结算都上链可查。</p>
+    </section>
+
+    <section>
+      <div class="section-label">02 / How it works</div>
+      <h2>功能与使用说明</h2>
+      <div class="item">
+        <h3>玩法模式</h3>
+        <p>选择 1 分钟、3 分钟或 5 分钟模式，一局的总时长就是所选模式的时长。开局那一秒采样开始价，结束时比较结束价与开始价。</p>
+        <p>玩家在局内选择看涨或看跌并下单。结算时，方向正确的一方按各自下单比例分走奖池，这就是双池对分模式。</p>
+      </div>
+      <div class="item">
+        <h3>怎么下单</h3>
+        <ol>
+          <li>内测时，使用 TokenPocket 等钱包的内置浏览器打开页面并连接钱包，无需注册，也无需充值到产品账户。</li>
+          <li>选择品类、模式、下单币种和看涨或看跌方向，填写金额。SI 最低 50,000、单注上限 5,000,000；USDT 最低 5、单注上限 20,000。</li>
+          <li>第一次下单时在钱包中完成一次无限额授权。之后每注在钱包中签一次，注金直接从钱包扣除；下单时另付链上矿工费。</li>
+        </ol>
+      </div>
+      <div class="item">
+        <h3>品类与时段</h3>
+        <p>支持 BTC、ETH、BNB 和 NVDA，默认品类为 BTC。NVDA 只在美股交易时段开局：美东时间周一至周五 9:30–16:00，扣除美国节假日；开局判断也会考虑提前收盘日历。</p>
+      </div>
+      <div class="item">
+        <h3>费用构成</h3>
+        <p>每局从奖池收取 5%：其中 2% 销毁、2% 用于推荐奖励、1% 用于运营。下单时另付链上矿工费。</p>
+      </div>
+      <div class="item">
+        <h3>路引怎么看</h3>
+        <p>对局卡上的两排圆点是路引，每颗代表一局已结算结果：绿点表示看涨方胜，红点表示看跌方胜，灰点表示平局、取消或单边退款。路引用来查看最近一段时间的涨跌节奏。</p>
+      </div>
+      <div class="item">
+        <h3>邀请返佣规则</h3>
+        <p>把自己的邀请链接发给朋友。朋友下单结算后，累计已结算本金满 500,000 SI，推荐人一次性获得 10,000 SI 奖励；每位推荐人终身累计上限为 1,000,000 SI。奖励进入「待领取」。</p>
+      </div>
+      <div class="item">
+        <h3>结算与退款口径</h3>
+        <p>SI 和 USDT 是两个独立的池子，分别记账、结算和派奖。结束价等于开始价时为平局，全额退款；整局只有单边下单时也全额退款。</p>
+        <p>页面行情来自主流交易所实时行情。每局开始价与结束价由后台服务采样并写到链上，结算以链上记录为准，任何人都可查。$SI 的价格读自 PancakeSwap 主流动性池。</p>
+      </div>
+      <div class="item">
+        <h3>待领取与提现</h3>
+        <p>赢利、推荐奖励和退款统一进入页面里的「待领取」。点击一次提现，即可将其中的款项全部提回钱包。</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">03 / Development</div>
+      <h2>开发中经历的困难</h2>
+      <div class="item">
+        <h3>开局服务的稳定性</h3>
+        <p>后台开局服务（keeper）多次因运行平台更换机器而停机。后来我们加入每 5 分钟健康检查和自动拉起，并在油料（矿工费余额）不足时提前预警。</p>
+      </div>
+      <div class="item">
+        <h3>价格源的选择</h3>
+        <p>价格源换过三轮：最早使用链上价格，发现没有成交量、价格不可信。改用多家交易所实时行情后，几家报价略有差异，交错画进同一条线会变成满屏锯齿。</p>
+        <p>最后确定线只跟随一家主行情源，其他来源只在主源断线时接管。</p>
+      </div>
+      <div class="item">
+        <h3>图表平滑</h3>
+        <p>图表平滑经过多轮返工，线尾需要逐笔跟随，倒计时和价签需要同价同步。断网恢复后还要按时间戳补齐数据，我们对照竞品逐帧打磨。</p>
+      </div>
+      <div class="item">
+        <h3>NVDA 行情与交易日历</h3>
+        <p>NVDA 的喂价源曾整段冻结，画出假平局。后来我们换了主数据源，并为开局判断加入完整的美国节假日与提前收盘日历。</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-label">04 / Current status</div>
+      <h2>当前状态</h2>
+      <div class="status">
+        <p>产品目前运行在 BSC 测试网，处于内测阶段。站内 SI、USDT、BNB 均为测试币，没有真实价值。</p>
+        <p>主网尚未开放，上线前须通过独立安全审计。欢迎反馈使用中遇到的问题。</p>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <p>乾坤战场 · 一凡工作室出品</p>
+    <p>Telegram：<a href="https://t.me/onefanlab">@onefanlab</a><br>邮箱：<a href="mailto:onefanlab@gmail.com">onefanlab@gmail.com</a></p>
+    <a class="home-link" href="index.html">进入乾坤战场</a>
+  </footer>
+</body>
+</html>
